@@ -1,0 +1,113 @@
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nextrail.local/catalog/v1",
+  "title": "Nextrail Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "providers", "skills", "resources"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "providers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/provider" }
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skill" }
+    },
+    "resources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/resource" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "website", "access_method", "authorization"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "website": { "$ref": "#/$defs/url" },
+        "access_method": {
+          "enum": ["manual", "official_api", "rss"]
+        },
+        "authorization": {
+          "enum": ["pending", "approved"]
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "prerequisites"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "prerequisites": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "provider_id", "title", "url", "skills",
+        "prerequisites", "access_cost", "certificate_cost",
+        "evidence", "synthetic"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "provider_id": { "$ref": "#/$defs/id" },
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "$ref": "#/$defs/url" },
+        "skills": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "prerequisites": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "access_cost": {
+          "enum": ["free", "paid", "conditional", "unknown"]
+        },
+        "certificate_cost": {
+          "enum": ["free", "paid", "not_offered", "unknown"]
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "source_url", "checked_at"],
+          "properties": {
+            "status": { "enum": ["verified", "unverified"] },
+            "source_url": {
+              "oneOf": [{ "$ref": "#/$defs/url" }, { "type": "null" }]
+            },
+            "checked_at": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            }
+          }
+        },
+        "synthetic": { "type": "boolean" }
+      }
+    }
+  }
+}

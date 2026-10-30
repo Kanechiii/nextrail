@@ -1,0 +1,64 @@
+
+{
+  "schema_version": "1.0.0",
+  "providers": [
+    {
+      "id": "example-learning",
+      "name": "Example Learning (Synthetic)",
+      "website": "https://example.org",
+      "access_method": "manual",
+      "authorization": "pending"
+    }
+  ],
+  "skills": [
+    {
+      "id": "html",
+      "name": "HTML Fundamentals",
+      "prerequisites": []
+    },
+    {
+      "id": "css",
+      "name": "CSS Fundamentals",
+      "prerequisites": ["html"]
+    },
+    {
+      "id": "javascript",
+      "name": "JavaScript Fundamentals",
+      "prerequisites": ["html"]
+    }
+  ],
+  "resources": [
+    {
+      "id": "example-html-course",
+      "provider_id": "example-learning",
+      "title": "Example HTML Learning Resource",
+      "url": "https://example.org/html",
+      "skills": ["html"],
+      "prerequisites": [],
+      "access_cost": "unknown",
+      "certificate_cost": "unknown",
+      "evidence": {
+        "status": "unverified",
+        "source_url": null,
+        "checked_at": null
+      },
+      "synthetic": true
+    },
+    {
+      "id": "example-css-course",
+      "provider_id": "example-learning",
+      "title": "Example CSS Learning Resource",
+      "url": "https://example.org/css",
+      "skills": ["css"],
+      "prerequisites": ["html"],
+      "access_cost": "unknown",
+      "certificate_cost": "unknown",
+      "evidence": {
+        "status": "unverified",
+        "source_url": null,
+        "checked_at": null
+      },
+      "synthetic": true
+    }
+  ]
+}
