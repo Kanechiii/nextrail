@@ -1,0 +1,25 @@
+{
+  "source_id": "example-manual-source",
+  "records": [
+    {
+      "external_id": "intro-html",
+      "title": "Sample HTML Introduction",
+      "url": "https://example.org/intro-html",
+      "skills": [
+        "html"
+      ],
+      "prerequisites": []
+    },
+    {
+      "external_id": "intro-css",
+      "title": "Sample CSS Introduction",
+      "url": "https://example.org/intro-css",
+      "skills": [
+        "css"
+      ],
+      "prerequisites": [
+        "html"
+      ]
+    }
+  ]
+}
