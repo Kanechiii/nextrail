@@ -39,6 +39,11 @@ class ApiTests(unittest.TestCase):
     def test_guest_courses_without_login(self):
         self.assertEqual(self.client.get("/v1/courses").status_code, 200)
 
+    def test_guest_skills_without_login(self):
+        result = self.client.get("/v1/skills")
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(any(skill["id"] == "html" for skill in result.json()["items"]))
+
     def test_guest_preview_without_login(self):
         r = self.client.post("/v1/pathways/preview", json=self.plan())
         self.assertEqual(r.status_code, 200)
