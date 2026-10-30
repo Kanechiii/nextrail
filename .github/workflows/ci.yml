@@ -13,7 +13,7 @@ jobs:
   validate:
     name: Validate repository foundations
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,9 +35,18 @@ jobs:
         run: node --version
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
-      - name: Test complete repository
+      - name: Test complete backend repository
         run: python -m unittest discover -s scripts -p "test_*.py" -v
       - name: Validate discovery fixtures and adapters
         run: python scripts/validate_discovery.py
       - name: Compile backend modules
         run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm install --no-audit --no-fund
+      - name: Test web experience
+        working-directory: apps/web
+        run: npm test
+      - name: Typecheck and build frontend
+        working-directory: apps/web
+        run: npm run build

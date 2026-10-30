@@ -98,6 +98,14 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         except (ValueError, KeyError, TypeError):
             raise HTTPException(422, "Invalid pathway request")
 
+    @app.get("/v1/skills")
+    async def skills():
+        return {"items": [
+            {"id": skill["id"], "name": skill["name"],
+             "prerequisites": skill["prerequisites"]}
+            for skill in catalog["skills"]
+        ]}
+
     @app.post("/v1/pathways/preview")
     async def preview(input: PlanInput):
         return planning(input)
