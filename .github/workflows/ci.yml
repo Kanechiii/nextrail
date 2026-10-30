@@ -1,5 +1,4 @@
 name: Repository Validation
-
 on:
   push:
     branches:
@@ -8,53 +7,41 @@ on:
     branches:
       - main
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   validate:
     name: Validate repository foundations
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-
       - name: Validate repository structure
         run: python scripts/validate_repository.py
-
       - name: Validate Python syntax
         run: python -m py_compile scripts/validate_repository.py
-
       - name: Verify Node.js runtime
         run: node --version
-
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
-
-      - name: Test catalog and discovery contracts
+      - name: Test catalog, discovery and evidence contracts
         run: python -m unittest discover -s scripts -p "test_*.py" -v
-
       - name: Validate local AI syntax
         run: python -m compileall -q services/api/nextrail_ai
-
       - name: Validate discovery fixtures and adapters
         run: python scripts/validate_discovery.py
-
       - name: Validate discovery syntax
         run: python -m compileall -q services/api/nextrail_discovery
-
       - name: Validate orchestration syntax
         run: python -m compileall -q services/api/nextrail_orchestration
+      - name: Validate evidence syntax
+        run: python -m compileall -q services/api/nextrail_evidence
