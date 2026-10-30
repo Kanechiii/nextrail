@@ -1,28 +1,43 @@
 
----
-name: Development task
-about: Describe an authorized implementation task
-title: ""
-labels: []
-assignees: []
----
+name: Repository Validation
 
-## Summary
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
-Describe the required change.
+permissions:
+  contents: read
 
-## Motivation
+jobs:
+  validate:
+    name: Validate repository foundations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
-Explain why the change is necessary.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-## Scope
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
 
-Identify affected components and implementation boundaries.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
 
-## Verification
+      - name: Validate repository structure
+        run: python scripts/validate_repository.py
 
-Describe the expected tests and validation evidence.
+      - name: Validate Python syntax
+        run: python -m py_compile scripts/validate_repository.py
 
-## Risks
-
-Document security, compatibility, financial, and rollback considerations.
+      - name: Verify Node.js runtime
+        run: node --version
