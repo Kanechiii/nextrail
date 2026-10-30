@@ -63,7 +63,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     def learning():
         return app.state.learning
 
-    def current_owner(authorization: str | None = Header(default=None)):
+    async def current_owner(authorization: str | None = Header(default=None)):
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(401, "Authentication required", headers={"WWW-Authenticate": "Bearer"})
         try:
@@ -72,11 +72,11 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(401, "Invalid session", headers={"WWW-Authenticate": "Bearer"})
 
     @app.get("/health")
-    def health():
+    async def health():
         return {"status": "ok"}
 
     @app.get("/v1/courses")
-    def courses(query: str = "", provider_id: str | None = None,
+    async def courses(query: str = "", provider_id: str | None = None,
                 skill_id: str | None = None, access_cost: str | None = None,
                 certificate_cost: str | None = None, limit: int = 20):
         try:
@@ -99,11 +99,11 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(422, "Invalid pathway request")
 
     @app.post("/v1/pathways/preview")
-    def preview(input: PlanInput):
+    async def preview(input: PlanInput):
         return planning(input)
 
     @app.post("/v1/auth/register", status_code=201)
-    def register(input: Credentials):
+    async def register(input: Credentials):
         try:
             auth().register(input.email, input.password)
             return {"created": True}
@@ -111,14 +111,14 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(400, "Account could not be created")
 
     @app.post("/v1/auth/login")
-    def login(input: Credentials):
+    async def login(input: Credentials):
         try:
             return auth().login(input.email, input.password)
         except AuthError:
             raise HTTPException(401, "Invalid credentials")
 
     @app.post("/v1/auth/logout")
-    def logout(authorization: str | None = Header(default=None),
+    async def logout(authorization: str | None = Header(default=None),
                owner: str = Depends(current_owner)):
         try:
             auth().revoke_session(authorization[7:])
@@ -127,16 +127,16 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(401, "Invalid session")
 
     @app.get("/v1/me")
-    def me(owner: str = Depends(current_owner)):
+    async def me(owner: str = Depends(current_owner)):
         return auth().account(owner)
 
     @app.post("/v1/auth/password-reset/request")
-    def reset_request(input: ResetRequest):
+    async def reset_request(input: ResetRequest):
         auth().request_password_reset(input.email, delivery=reset_delivery)
         return {"accepted": True}
 
     @app.post("/v1/auth/password-reset/confirm")
-    def reset_confirm(input: ResetConfirm):
+    async def reset_confirm(input: ResetConfirm):
         try:
             auth().confirm_password_reset(input.token, input.new_password)
             return {"updated": True}
@@ -144,30 +144,30 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(400, "Invalid or expired reset credentials")
 
     @app.post("/v1/me/pathways", status_code=201)
-    def save_pathway(input: PlanInput, owner: str = Depends(current_owner)):
+    async def save_pathway(input: PlanInput, owner: str = Depends(current_owner)):
         result = planning(input)
         return {"id": learning().save_pathway(owner, result), "pathway": result}
 
     @app.get("/v1/me/pathways")
-    def list_pathways(owner: str = Depends(current_owner)):
+    async def list_pathways(owner: str = Depends(current_owner)):
         return {"items": learning().list_pathways(owner)}
 
     @app.get("/v1/me/pathways/{pathway_id}")
-    def get_pathway(pathway_id: str, owner: str = Depends(current_owner)):
+    async def get_pathway(pathway_id: str, owner: str = Depends(current_owner)):
         try:
             return learning().get_pathway(owner, pathway_id)
         except KeyError:
             raise HTTPException(404, "Pathway not found")
 
     @app.get("/v1/me/pathways/{pathway_id}/progress")
-    def get_progress(pathway_id: str, owner: str = Depends(current_owner)):
+    async def get_progress(pathway_id: str, owner: str = Depends(current_owner)):
         try:
             return learning().get_progress(owner, pathway_id)
         except KeyError:
             raise HTTPException(404, "Pathway not found")
 
     @app.put("/v1/me/pathways/{pathway_id}/progress/{skill_id}")
-    def update_progress(pathway_id: str, skill_id: str, body: ProgressUpdate,
+    async def update_progress(pathway_id: str, skill_id: str, body: ProgressUpdate,
                         owner: str = Depends(current_owner)):
         try:
             return {"changed": learning().set_progress(owner, pathway_id, skill_id, body.status)}
@@ -177,25 +177,25 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(422, "Invalid progress update")
 
     @app.get("/v1/me/courses")
-    def saved_courses(owner: str = Depends(current_owner)):
+    async def saved_courses(owner: str = Depends(current_owner)):
         return {"resource_ids": learning().list_saved_courses(owner)}
 
     @app.put("/v1/me/courses/{resource_id}")
-    def save_course(resource_id: str, owner: str = Depends(current_owner)):
+    async def save_course(resource_id: str, owner: str = Depends(current_owner)):
         allowed = {r["id"] for r in catalog["resources"] if not r["synthetic"]}
         if resource_id not in allowed:
             raise HTTPException(404, "Course not found")
         return {"saved": learning().save_course(owner, resource_id)}
 
     @app.delete("/v1/me/courses/{resource_id}")
-    def unsave_course(resource_id: str, owner: str = Depends(current_owner)):
+    async def unsave_course(resource_id: str, owner: str = Depends(current_owner)):
         try:
             return {"removed": learning().unsave_course(owner, resource_id)}
         except StorageError:
             raise HTTPException(422, "Invalid resource")
 
     @app.get("/v1/me/audit")
-    def audit(after_event_id: int = 0, limit: int = 50,
+    async def audit(after_event_id: int = 0, limit: int = 50,
               owner: str = Depends(current_owner)):
         try:
             return {"events": learning().audit_history(
