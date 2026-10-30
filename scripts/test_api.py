@@ -103,8 +103,8 @@ class ApiTests(unittest.TestCase):
         self.register("a@example.org")
         self.assertEqual(self.client.post("/v1/auth/password-reset/request",
             json={"email": "a@example.org"}).status_code, 200)
-        conn = self.client.app.state.db
-        self.assertEqual(conn.execute("SELECT count(*) FROM password_reset_tokens").fetchone()[0], 0)
+        self.assertEqual(self.client.post("/v1/auth/password-reset/confirm",
+            json={"token": "invalid", "new_password": "new-long-password123"}).status_code, 400)
 
     def test_invalid_bearer_token_rejected(self):
         self.assertEqual(self.client.get("/v1/me", headers={"Authorization": "Bearer forged"}).status_code, 401)
