@@ -13,7 +13,7 @@ jobs:
   validate:
     name: Validate repository foundations
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,6 +25,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Install API test dependencies
+        run: python -m pip install "fastapi>=0.115,<1" "httpx>=0.27,<1" "uvicorn>=0.30,<1"
       - name: Validate repository structure
         run: python scripts/validate_repository.py
       - name: Validate Python syntax
@@ -33,17 +35,9 @@ jobs:
         run: node --version
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
-      - name: Test all contracts and persistence
+      - name: Test complete repository
         run: python -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Validate local AI syntax
-        run: python -m compileall -q services/api/nextrail_ai
       - name: Validate discovery fixtures and adapters
         run: python scripts/validate_discovery.py
-      - name: Validate discovery syntax
-        run: python -m compileall -q services/api/nextrail_discovery
-      - name: Validate orchestration syntax
-        run: python -m compileall -q services/api/nextrail_orchestration
-      - name: Validate evidence syntax
-        run: python -m compileall -q services/api/nextrail_evidence
-      - name: Validate storage syntax
-        run: python -m compileall -q services/api/nextrail_storage
+      - name: Compile backend modules
+        run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
