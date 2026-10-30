@@ -3,31 +3,36 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from nextrail_ai import PlanningRequest
 from nextrail_auth import AccountStore, AuthError
 from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
+from .guards import FixedWindowLimiter
 
 
-class Credentials(BaseModel):
+class StrictBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class Credentials(StrictBody):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=128)
 
 
-class ResetRequest(BaseModel):
+class ResetRequest(StrictBody):
     email: str = Field(min_length=3, max_length=254)
 
 
-class ResetConfirm(BaseModel):
+class ResetConfirm(StrictBody):
     token: str
     new_password: str
 
 
-class PlanInput(BaseModel):
+class PlanInput(StrictBody):
     career_goal: str = Field(min_length=1, max_length=120)
     target_skill_ids: list[str] = Field(min_length=1, max_length=32)
     known_skill_ids: list[str] = Field(default_factory=list, max_length=128)
@@ -35,7 +40,7 @@ class PlanInput(BaseModel):
     zero_budget: bool = True
 
 
-class ProgressUpdate(BaseModel):
+class ProgressUpdate(StrictBody):
     status: str
 
 
@@ -56,6 +61,17 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             connection.close()
 
     app = FastAPI(title="Nextrail API", version="0.1.0", lifespan=lifespan)
+    limiter = FixedWindowLimiter()
+
+    @app.middleware("http")
+    async def privacy_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
 
     def auth():
         return app.state.auth
@@ -76,9 +92,10 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         return {"status": "ok"}
 
     @app.get("/v1/courses")
-    async def courses(query: str = "", provider_id: str | None = None,
+    async def courses(request: Request, query: str = "", provider_id: str | None = None,
                 skill_id: str | None = None, access_cost: str | None = None,
                 certificate_cost: str | None = None, limit: int = 20):
+        limiter.enforce(request, "courses", 120)
         try:
             return {"items": discover_courses(
                 catalog, query=query, provider_id=provider_id, skill_id=skill_id,
@@ -107,11 +124,13 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         ]}
 
     @app.post("/v1/pathways/preview")
-    async def preview(input: PlanInput):
+    async def preview(input: PlanInput, request: Request):
+        limiter.enforce(request, "pathway_preview", 30)
         return planning(input)
 
     @app.post("/v1/auth/register", status_code=201)
-    async def register(input: Credentials):
+    async def register(input: Credentials, request: Request):
+        limiter.enforce(request, "register", 6)
         try:
             auth().register(input.email, input.password)
             return {"created": True}
@@ -119,7 +138,8 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
             raise HTTPException(400, "Account could not be created")
 
     @app.post("/v1/auth/login")
-    async def login(input: Credentials):
+    async def login(input: Credentials, request: Request):
+        limiter.enforce(request, "login", 12)
         try:
             return auth().login(input.email, input.password)
         except AuthError:
@@ -139,12 +159,14 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         return auth().account(owner)
 
     @app.post("/v1/auth/password-reset/request")
-    async def reset_request(input: ResetRequest):
+    async def reset_request(input: ResetRequest, request: Request):
+        limiter.enforce(request, "password_reset", 5)
         auth().request_password_reset(input.email, delivery=reset_delivery)
         return {"accepted": True}
 
     @app.post("/v1/auth/password-reset/confirm")
-    async def reset_confirm(input: ResetConfirm):
+    async def reset_confirm(input: ResetConfirm, request: Request):
+        limiter.enforce(request, "password_reset_confirm", 10)
         try:
             auth().confirm_password_reset(input.token, input.new_password)
             return {"updated": True}
