@@ -55,3 +55,6 @@ jobs:
 
       - name: Validate discovery syntax
         run: python -m compileall -q services/api/nextrail_discovery
+
+      - name: Validate orchestration syntax
+        run: python -m compileall -q services/api/nextrail_orchestration
