@@ -33,7 +33,7 @@ jobs:
         run: node --version
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
-      - name: Test catalog, discovery and evidence contracts
+      - name: Test all contracts and persistence
         run: python -m unittest discover -s scripts -p "test_*.py" -v
       - name: Validate local AI syntax
         run: python -m compileall -q services/api/nextrail_ai
@@ -45,3 +45,5 @@ jobs:
         run: python -m compileall -q services/api/nextrail_orchestration
       - name: Validate evidence syntax
         run: python -m compileall -q services/api/nextrail_evidence
+      - name: Validate storage syntax
+        run: python -m compileall -q services/api/nextrail_storage
