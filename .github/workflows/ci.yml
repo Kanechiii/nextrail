@@ -1,4 +1,3 @@
-
 name: Repository Validation
 
 on:
@@ -45,5 +44,8 @@ jobs:
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
 
-      - name: Test catalog integrity
-        run: python -m unittest discover -s scripts -p "test_catalog.py" -v
+      - name: Test catalog and local AI contracts
+        run: python -m unittest discover -s scripts -p "test_*.py" -v
+
+      - name: Validate local AI syntax
+        run: python -m compileall -q services/api/nextrail_ai
