@@ -1,6 +1,6 @@
 ## Summary
 
-Describe what this pull request changes and the intended outcome.
+Describe the completed change and its outcome.
 
 ## Motivation
 
@@ -8,12 +8,13 @@ Explain the product or engineering requirement.
 
 ## Scope
 
-Describe the implemented functionality, affected components, and intentional boundaries.
+Describe implemented features, affected modules, integrations, and intentional boundaries.
 
 ## Verification
 
-Report checks actually executed, their results, and any remaining unverified behavior.
+Report checks actually executed, their results, and any behavior not yet verified.
 
 ## Goals
 
-- [ ] Describe a specific implementation goal and mark it complete only after verification.
+- [ ] State a specific implementation goal and check it only after completion.
+- [ ] Add additional completed goals as needed.
