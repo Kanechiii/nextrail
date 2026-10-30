@@ -44,8 +44,14 @@ jobs:
       - name: Validate catalog contracts
         run: python scripts/validate_catalog.py
 
-      - name: Test catalog and local AI contracts
+      - name: Test catalog and discovery contracts
         run: python -m unittest discover -s scripts -p "test_*.py" -v
 
       - name: Validate local AI syntax
         run: python -m compileall -q services/api/nextrail_ai
+
+      - name: Validate discovery fixtures and adapters
+        run: python scripts/validate_discovery.py
+
+      - name: Validate discovery syntax
+        run: python -m compileall -q services/api/nextrail_discovery

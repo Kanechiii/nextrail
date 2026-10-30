@@ -1,20 +1,19 @@
-﻿## Summary
+## Summary
 
-Describe the proposed change and its purpose.
+Describe what this pull request changes and the intended outcome.
 
 ## Motivation
 
-Explain the requirement or issue being addressed.
+Explain the product or engineering requirement.
 
 ## Scope
 
-Describe affected components, files, and boundaries.
+Describe the implemented functionality, affected components, and intentional boundaries.
 
 ## Verification
 
-Document tests, manual checks, and observed results.
+Report checks actually executed, their results, and any remaining unverified behavior.
 
-## Risks
+## Goals
 
-Describe security, compatibility, cost, and
-rollback considerations.
+- [ ] Describe a specific implementation goal and mark it complete only after verification.

@@ -1,0 +1,10 @@
+{
+  "intro-js": {
+    "skills": [
+      "javascript"
+    ],
+    "prerequisites": [
+      "html"
+    ]
+  }
+}

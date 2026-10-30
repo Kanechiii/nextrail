@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "id": "example-manual-source",
+      "provider_id": "example-learning",
+      "provider_name": "Example Learning (Synthetic)",
+      "provider_website": "https://example.org",
+      "source_url": "https://example.org/catalog",
+      "method": "manual",
+      "authorization": "pending",
+      "allowed_hosts": [
+        "example.org"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "example-feed-source",
+      "provider_id": "example-feed",
+      "provider_name": "Example Feed (Synthetic)",
+      "provider_website": "https://example.net",
+      "source_url": "https://example.net/feed.xml",
+      "method": "rss",
+      "authorization": "pending",
+      "allowed_hosts": [
+        "example.net"
+      ],
+      "synthetic": true
+    }
+  ]
+}
