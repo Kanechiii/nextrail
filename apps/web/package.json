@@ -1,0 +1,14 @@
+
+{
+  "name": "@nextrail/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Nextrail frontend application workspace",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "verify": "node --version"
+  }
+}
