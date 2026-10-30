@@ -42,7 +42,7 @@ jobs:
       - name: Validate discovery fixtures and adapters
         run: python scripts/validate_discovery.py
       - name: Compile backend modules
-        run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
+        run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api services/api/nextrail_bedrock
       - name: Install web dependencies
         working-directory: apps/web
         run: npm install --no-audit --no-fund
