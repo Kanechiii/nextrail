@@ -2,7 +2,7 @@
 
 ## Integration and dependency
 
-This work is developed concurrently with the shared UI design system but is reviewed as a stacked pull request based on `feat/ui-foundations`. Merge the design-system PR first, then retarget and verify the account-workspace PR against `main` before considering its merge. No force-push or history rewrite is needed.
+This work is developed concurrently with the shared UI design system and begins from its current feature-branch head. Its pull request targets `main` so all existing GitHub Actions checks run. Until the design-system PR is merged, the account-workspace PR also includes those prerequisite commits. Merge the design-system PR first, refresh the account-workspace PR diff against `main`, rerun tests, and only then consider merging the account-workspace PR. No force-push or history rewrite is needed.
 
 ## Registered mode
 
