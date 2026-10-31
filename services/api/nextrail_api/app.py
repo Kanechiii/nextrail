@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nextrail_ai import PlanningRequest
 from nextrail_auth import AccountStore, AuthError
+from nextrail_auth.preferences import AccountPreferencesStore
 from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
@@ -44,6 +45,14 @@ class ProgressUpdate(StrictBody):
     status: str
 
 
+class PreferencesUpdate(StrictBody):
+    display_name: str | None = Field(default=None, max_length=80)
+    career_goal: str | None = Field(default=None, max_length=120)
+    weekly_hours: int | None = Field(default=None, ge=1, le=80)
+    target_skill_ids: list[str] | None = Field(default=None, max_length=32)
+    known_skill_ids: list[str] | None = Field(default=None, max_length=128)
+
+
 def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     root = Path(__file__).resolve().parents[3]
     if catalog is None:
@@ -54,6 +63,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         connection = open_database(database_path)
         app.state.db = connection
         app.state.auth = AccountStore(connection)
+        app.state.preferences = AccountPreferencesStore(connection)
         app.state.learning = LearningStore(connection)
         try:
             yield
@@ -157,6 +167,42 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     @app.get("/v1/me")
     async def me(owner: str = Depends(current_owner)):
         return auth().account(owner)
+
+    @app.get("/v1/me/preferences")
+    async def get_preferences(owner: str = Depends(current_owner)):
+        return app.state.preferences.get(owner)
+
+    @app.patch("/v1/me/preferences")
+    async def update_preferences(
+        body: PreferencesUpdate, owner: str = Depends(current_owner)
+    ):
+        try:
+            return app.state.preferences.update(
+                owner, body.model_dump(exclude_unset=True),
+                allowed_skill_ids={skill["id"] for skill in catalog["skills"]},
+            )
+        except (AuthError, StorageError):
+            raise HTTPException(422, "Invalid account preferences")
+
+    @app.get("/v1/me/overview")
+    async def account_overview(owner: str = Depends(current_owner)):
+        db = app.state.db
+        count = db.execute(
+            "SELECT count(*) FROM learning_pathways WHERE owner_id=?", (owner,)
+        ).fetchone()[0]
+        bookmarks = db.execute(
+            "SELECT count(*) FROM saved_courses WHERE owner_id=?", (owner,)
+        ).fetchone()[0]
+        recent = learning().list_pathways(owner, limit=1)
+        latest_id = recent[0]["id"] if recent else None
+        progress = learning().get_progress(owner, latest_id) if latest_id else None
+        return {
+            "saved_pathway_count": count,
+            "saved_course_count": bookmarks,
+            "latest_pathway_id": latest_id,
+            "completed_milestones": progress["completed"] if progress else 0,
+            "total_milestones": progress["total"] if progress else 0,
+        }
 
     @app.post("/v1/auth/password-reset/request")
     async def reset_request(input: ResetRequest, request: Request):
