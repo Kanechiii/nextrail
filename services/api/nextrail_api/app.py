@@ -1,13 +1,14 @@
 """Guest-first JSON API with verified bearer ownership boundaries."""
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from typing import Literal
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,6 +19,7 @@ from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.idempotency import IdempotencyConflict, key_digest
+from nextrail_storage.store import ProgressConflict
 from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
@@ -442,17 +444,31 @@ def create_app(
             raise HTTPException(404, "Pathway not found")
 
     @app.get("/v1/me/pathways/{pathway_id}/progress")
-    async def get_progress(pathway_id: str, owner: str = Depends(current_owner)):
+    async def get_progress(pathway_id: str, response: Response,
+                           owner: str = Depends(current_owner)):
         try:
-            return learning().get_progress(owner, pathway_id)
+            current = learning().get_progress(owner, pathway_id)
+            response.headers["ETag"] = '"' + current["revision"] + '"'
+            response.headers["Cache-Control"] = "no-store"
+            return current
         except KeyError:
             raise HTTPException(404, "Pathway not found")
 
     @app.put("/v1/me/pathways/{pathway_id}/progress/{skill_id}")
     async def update_progress(pathway_id: str, skill_id: str, body: ProgressUpdate,
-                        owner: str = Depends(current_owner)):
+                        owner: str = Depends(current_owner),
+                        if_match: str | None = Header(default=None, alias="If-Match")):
+        expected = None
+        if if_match is not None:
+            if not re.fullmatch(r'"(0|[1-9][0-9]{0,18})"', if_match):
+                raise HTTPException(422, "Invalid progress revision")
+            expected = if_match[1:-1]
         try:
-            return {"changed": learning().set_progress(owner, pathway_id, skill_id, body.status)}
+            return {"changed": learning().set_progress(
+                owner, pathway_id, skill_id, body.status, expected_revision=expected,
+            )}
+        except ProgressConflict:
+            raise HTTPException(409, "Progress changed in another view. Reload before updating.")
         except KeyError:
             raise HTTPException(404, "Pathway not found")
         except StorageError:
