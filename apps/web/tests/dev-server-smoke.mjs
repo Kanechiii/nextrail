@@ -11,6 +11,7 @@ import {tmpdir} from 'node:os'
 import {join,resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {setTimeout as sleep} from 'node:timers/promises'
+import {devServerInvocation} from './dev-server-launch.mjs'
 
 const web=resolve(fileURLToPath(new URL('..',import.meta.url)))
 const root=resolve(web,'../..')
@@ -201,7 +202,11 @@ async function browserSmoke(binary){
 try{
   spawnService(process.platform==='win32'?'python':'python',['-m','uvicorn','nextrail_api.main:app','--app-dir','services/api','--host','127.0.0.1','--port','8000'],root)
   await probe('http://127.0.0.1:8000/health')
-  spawnService(process.platform==='win32'?'npm.cmd':'npm',['run','dev','--','--strictPort'],web)
+  const dev=devServerInvocation()
+  if(process.platform==='win32'&&!existsSync(dev.args[0])){
+    throw new Error('npm_execpath must point to an existing npm CLI. Start this smoke with npm run test:dev.')
+  }
+  spawnService(dev.command,dev.args,web)
   const html=await getText('/')
   assert.match(html,/id="root"/)
   for(const path of ['/src/main.tsx','/src/App.tsx','/src/api.ts','/src/useFeedbackTiming.ts','/src/FeedbackToasts.tsx','/src/feedback.css']){
