@@ -263,13 +263,42 @@ class ReviewedRuntimeApiTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in result.json()["items"]],
                          ["example-training-intro-html"])
 
-    def test_guest_preview_uses_current_reviewed_catalog(self):
+    def test_guest_preview_uses_verified_free_course_from_reviewed_release(self):
         res = self.client.post("/v1/pathways/preview", json={
             "career_goal": "Frontend developer", "target_skill_ids": ["html"],
             "zero_budget": True,
         })
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json()["milestones"][0]["resource_ids"], [])
+        self.assertEqual(
+            res.json()["milestones"][0]["resource_ids"],
+            ["example-training-intro-html"],
+        )
+
+    def test_saved_zero_budget_pathway_retains_reviewed_free_course(self):
+        registration = self.client.post("/v1/auth/register", json={
+            "email": "student-path@example.org", "password": PASSWORD,
+        })
+        self.assertEqual(registration.status_code, 201)
+        token = self.client.post("/v1/auth/login", json={
+            "email": "student-path@example.org", "password": PASSWORD,
+        }).json()["access_token"]
+        headers = {"Authorization": "Bearer " + token}
+        result = self.client.post("/v1/me/pathways", headers=headers, json={
+            "career_goal": "Frontend developer",
+            "target_skill_ids": ["html"],
+            "zero_budget": True,
+        })
+        self.assertEqual(result.status_code, 201, result.text)
+        milestone = result.json()["pathway"]["milestones"][0]
+        self.assertEqual(milestone["resource_ids"], ["example-training-intro-html"])
+        fetched = self.client.get(
+            "/v1/me/pathways/" + result.json()["id"], headers=headers,
+        )
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(
+            fetched.json()["milestones"][0]["resource_ids"],
+            ["example-training-intro-html"],
+        )
 
     def test_existing_auth_and_saved_courses_work_with_reviewed_catalog(self):
         register = self.client.post("/v1/auth/register", json={
