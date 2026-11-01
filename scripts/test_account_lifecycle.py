@@ -402,6 +402,23 @@ class AccountLifecycleStoreTests(unittest.TestCase):
         ).fetchone())
         self.assertEqual(self.store.session_owner(self.token), self.owner)
 
+    def test_tampered_audit_guard_cannot_enable_account_erasure(self):
+        # A trigger with the correct name/message but WHEN 0 is ineffective.
+        self.db.execute("DROP TRIGGER audit_events_no_delete")
+        self.db.execute("""CREATE TRIGGER audit_events_no_delete
+            BEFORE DELETE ON audit_events WHEN 0
+            BEGIN SELECT RAISE(ABORT, 'audit records are append-only'); END""")
+        with self.assertRaises(AuthError):
+            self.store.delete_account(self.token, PASSWORD)
+        self.assertEqual(self.store.account(self.owner)["email"], "owner@example.org")
+        self.assertEqual(self.store.session_owner(self.token), self.owner)
+
+    def test_missing_audit_guard_cannot_enable_account_erasure(self):
+        self.db.execute("DROP TRIGGER audit_events_no_delete")
+        with self.assertRaises(AuthError):
+            self.store.delete_account(self.token, PASSWORD)
+        self.assertEqual(self.store.account(self.owner)["email"], "owner@example.org")
+
     def test_deletion_requires_current_password(self):
         self.assertRaises(AuthError, self.store.delete_account, self.token, "invalid")
         self.assertEqual(self.store.account(self.owner)["email"], "owner@example.org")

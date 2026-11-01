@@ -61,7 +61,7 @@ must not remove any other account's data. To respect the established
 append-only audit protection on ordinary operations, the service temporarily
 lifts the **specific audit deletion trigger inside a single SQLite write
 transaction**, deletes only that owner's data and recreates the exact original
-trigger before commit. It checks the expected trigger definition beforehand.
+trigger before commit. It validates the existing trigger's expected structure and confirms its behavior with a temporary, transactionally rolled-back audit record before allowing account deletion. It then restores the original on-disk trigger definition.
 Any SQL failure rolls back both the data erasure and trigger changes.
 Tests verify the append-only trigger remains active and other accounts are
 unaffected.

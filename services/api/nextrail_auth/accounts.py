@@ -8,7 +8,7 @@ import sqlite3
 import time
 from uuid import uuid4
 
-from nextrail_storage.database import SCHEMA, atomic
+from nextrail_storage.database import atomic
 from nextrail_storage.store import LearningStore
 
 EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}$")
@@ -398,10 +398,40 @@ class AccountStore:
                 """SELECT sql FROM sqlite_master
                 WHERE type='trigger' AND name='audit_events_no_delete'"""
             ).fetchone()
-            if (guard is None or not isinstance(guard[0], str)
-                    or " ".join(guard[0].split()).lower()
-                       != " ".join(SCHEMA[-1].split()).lower()):
+            statement = guard[0] if guard is not None else None
+            normalized = " ".join(statement.lower().split()) if isinstance(statement, str) else ""
+            if not (
+                normalized.startswith(
+                    "create trigger audit_events_no_delete before delete on audit_events"
+                )
+                and "raise(abort, 'audit records are append-only')" in normalized
+            ):
                 raise AuthError("Unexpected audit deletion guard; refusing account erasure")
+
+            # Verify the *behavior* rather than comparing SQLite's stored DDL
+            # byte-for-byte. SQLite may normalize trigger definitions across
+            # versions. Probe and roll back a disposable row within this
+            # transaction; never touch another account's audit history.
+            self.conn.execute("SAVEPOINT account_guard_probe")
+            try:
+                probe = self.conn.execute(
+                    """INSERT INTO audit_events(owner_id,entity_type,entity_id,
+                    operation,detail_json,recorded_at) VALUES(?,?,?,?,?,?)""",
+                    (owner, "account", owner, "guard_probe", "{}", "1970-01-01T00:00:00Z"),
+                ).lastrowid
+                try:
+                    self.conn.execute(
+                        "DELETE FROM audit_events WHERE event_id=?", (probe,)
+                    )
+                except sqlite3.DatabaseError as exc:
+                    if "audit records are append-only" not in str(exc):
+                        raise AuthError("Audit deletion guard is not operating") from exc
+                else:
+                    raise AuthError("Audit deletion guard is not operating")
+            finally:
+                self.conn.execute("ROLLBACK TO SAVEPOINT account_guard_probe")
+                self.conn.execute("RELEASE SAVEPOINT account_guard_probe")
+
             self.conn.execute("DROP TRIGGER audit_events_no_delete")
             self.conn.execute(
                 "DELETE FROM milestone_progress WHERE owner_id=?", (owner,)
@@ -421,5 +451,5 @@ class AccountStore:
             ).rowcount
             if deleted != 1:
                 raise AuthError("Account erasure failed")
-            self.conn.execute(SCHEMA[-1])
+            self.conn.execute(statement)
         return True
