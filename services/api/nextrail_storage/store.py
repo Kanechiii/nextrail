@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from .database import StorageError, atomic
+from . import idempotency
 
 OWNER = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
@@ -72,6 +73,12 @@ class LearningStore:
         if not isinstance(conn, sqlite3.Connection) or not conn.execute("PRAGMA foreign_keys").fetchone()[0]:
             raise StorageError("Initialized SQLite connection with foreign keys required")
         self.conn = conn
+        idempotency.initialize(self.conn)
+
+    def idempotent_pathway(self, owner, key, request_digest):
+        owner = owner_id(owner)
+        found = idempotency.lookup(self.conn, owner, key, request_digest)
+        return {"id": found, "pathway": self.get_pathway(owner, found)} if found else None
 
     def _audit(self, owner, kind, identifier, action, detail):
         self.conn.execute(
@@ -80,15 +87,25 @@ class LearningStore:
             (owner, kind, identifier, action, json.dumps(detail, sort_keys=True), timestamp()),
         )
 
-    def save_pathway(self, owner, pathway):
+    def save_pathway(self, owner, pathway, *, idempotency_key=None, request_digest=None):
         owner = owner_id(owner)
         snapshot = serialize_pathway(pathway)
+        if (idempotency_key is None) != (request_digest is None):
+            raise StorageError("Idempotency key and request digest must be supplied together")
+        if idempotency_key is not None:
+            idempotency.key_digest(owner, idempotency_key, request_digest)
         identifier = str(uuid4())
         with atomic(self.conn):
+            if idempotency_key is not None:
+                existing = idempotency.lookup(self.conn, owner, idempotency_key, request_digest)
+                if existing:
+                    return existing
             self.conn.execute(
                 "INSERT INTO learning_pathways(id,owner_id,pathway_json,created_at) VALUES(?,?,?,?)",
                 (identifier, owner, snapshot, timestamp()),
             )
+            if idempotency_key is not None:
+                idempotency.record(self.conn, owner, idempotency_key, request_digest, identifier, timestamp())
             self._audit(owner, "pathway", identifier, "created", {"milestone_count": len(pathway["milestones"])})
         return identifier
 
