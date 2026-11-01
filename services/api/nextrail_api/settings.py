@@ -28,3 +28,25 @@ def database_path_from_env(env: Mapping[str, str] | None = None) -> str:
     if not path.parent.is_dir() or path.is_dir() or path.is_symlink():
         raise ConfigurationError("Database parent must exist and file must not be a directory or symlink")
     return raw
+
+
+def reviewed_catalog_from_env(env: Mapping[str, str] | None = None):
+    """Require both explicit snapshot path and operator-reviewed SHA-256 pin."""
+    import re
+
+    values = os.environ if env is None else env
+    path = values.get("NEXTRAIL_REVIEWED_CATALOG_PATH")
+    sha = values.get("NEXTRAIL_REVIEWED_CATALOG_SHA256")
+    if path is None and sha is None:
+        return None, None
+    if not isinstance(path, str) or not isinstance(sha, str):
+        raise ConfigurationError("Reviewed catalog path and SHA-256 must be configured together")
+    if (not path or path != path.strip() or len(path) > 1024
+            or any(ord(c) < 32 or ord(c) == 127 for c in path)):
+        raise ConfigurationError("Invalid reviewed catalog path")
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise ConfigurationError("Reviewed catalog requires a lowercase SHA-256 pin")
+    location = Path(path)
+    if location.is_symlink() or not location.is_file() or location.suffix != ".json":
+        raise ConfigurationError("Reviewed catalog must be an existing regular JSON file")
+    return path, sha

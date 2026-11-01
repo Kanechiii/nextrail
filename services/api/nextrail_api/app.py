@@ -1,5 +1,6 @@
 """Guest-first JSON API with verified bearer ownership boundaries."""
 import json
+from datetime import datetime, timezone
 from typing import Literal
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +16,7 @@ from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
+from .release import ReleaseError, load_reviewed_bundle
 
 
 class StrictBody(BaseModel):
@@ -65,9 +67,27 @@ class PreferencesUpdate(StrictBody):
     known_skill_ids: list[str] | None = Field(default=None, max_length=128)
 
 
-def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
+def create_app(
+    *, database_path=":memory:", catalog=None, reset_delivery=None,
+    reviewed_catalog_path=None, reviewed_catalog_sha256=None, release_clock=None,
+):
+    if (reviewed_catalog_path is None) != (reviewed_catalog_sha256 is None):
+        raise ReleaseError("Reviewed catalog path and SHA-256 must be configured together")
+    if catalog is not None and reviewed_catalog_path is not None:
+        raise ReleaseError("Cannot combine injected catalog and reviewed release activation")
+    clock = release_clock if release_clock is not None else lambda: datetime.now(timezone.utc)
+    if not callable(clock):
+        raise ReleaseError("A callable release clock is required")
+    release = (
+        load_reviewed_bundle(
+            reviewed_catalog_path, reviewed_catalog_sha256, now=clock()
+        )
+        if reviewed_catalog_path is not None else None
+    )
     root = Path(__file__).resolve().parents[3]
-    if catalog is None:
+    if release is not None:
+        catalog = release.catalog
+    elif catalog is None:
         catalog = json.loads((root / "data/catalog.sample.json").read_text(encoding="utf-8"))
 
     @asynccontextmanager
@@ -95,6 +115,14 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         return response
 
+    def active_catalog():
+        if release is None:
+            return catalog
+        try:
+            return release.current_catalog(now=clock())
+        except ReleaseError:
+            raise HTTPException(503, "Reviewed catalog unavailable")
+
     def auth():
         return app.state.auth
 
@@ -113,6 +141,17 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     async def health():
         return {"status": "ok"}
 
+    @app.get("/ready")
+    async def ready():
+        current = active_catalog()
+        return {
+            "status": "ready",
+            "catalog_mode": "reviewed_snapshot" if release is not None else "sample",
+            "reviewed_course_count": (
+                release.reviewed_course_count if release is not None else 0
+            ),
+        }
+
     @app.get("/v1/courses")
     async def courses(request: Request, query: str = "", provider_id: str | None = None,
                 skill_id: str | None = None, access_cost: str | None = None,
@@ -120,7 +159,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         limiter.enforce(request, "courses", 120)
         try:
             return {"items": discover_courses(
-                catalog, query=query, provider_id=provider_id, skill_id=skill_id,
+                active_catalog(), query=query, provider_id=provider_id, skill_id=skill_id,
                 access_cost=access_cost, certificate_cost=certificate_cost, limit=limit
             )}
         except (ValueError, KeyError, TypeError):
@@ -133,7 +172,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
                 known_skill_ids=tuple(input.known_skill_ids),
                 weekly_hours=input.weekly_hours, zero_budget=input.zero_budget
             )
-            return orchestrate(catalog, request, env={}).pathway
+            return orchestrate(active_catalog(), request, env={}).pathway
         except (ValueError, KeyError, TypeError):
             raise HTTPException(422, "Invalid pathway request")
 
@@ -142,7 +181,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         return {"items": [
             {"id": skill["id"], "name": skill["name"],
              "prerequisites": skill["prerequisites"]}
-            for skill in catalog["skills"]
+            for skill in active_catalog()["skills"]
         ]}
 
     @app.post("/v1/pathways/preview")
@@ -248,7 +287,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         try:
             return app.state.preferences.update(
                 owner, body.model_dump(exclude_unset=True),
-                allowed_skill_ids={skill["id"] for skill in catalog["skills"]},
+                allowed_skill_ids={skill["id"] for skill in active_catalog()["skills"]},
             )
         except (AuthError, StorageError):
             raise HTTPException(422, "Invalid account preferences")
@@ -315,7 +354,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
         try:
             snapshot = learning().get_pathway(owner, pathway_id)
             progress = learning().get_progress(owner, pathway_id)
-            return build_workspace(pathway_id, snapshot, progress, catalog)
+            return build_workspace(pathway_id, snapshot, progress, active_catalog())
         except KeyError:
             raise HTTPException(404, "Pathway not found")
         except (WorkspaceError, StorageError):
@@ -360,7 +399,7 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
 
     @app.put("/v1/me/courses/{resource_id}")
     async def save_course(resource_id: str, owner: str = Depends(current_owner)):
-        allowed = {r["id"] for r in catalog["resources"] if not r["synthetic"]}
+        allowed = {r["id"] for r in active_catalog()["resources"] if not r["synthetic"]}
         if resource_id not in allowed:
             raise HTTPException(404, "Course not found")
         return {"saved": learning().save_course(owner, resource_id)}
