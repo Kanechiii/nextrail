@@ -148,7 +148,17 @@ async function authenticate(e:FormEvent){e.preventDefault()
     return
   }
   setBusy(true);try{if(authMode==='reset'){await call('/v1/auth/password-reset/request','POST',{email});notify('Reset requested. Email delivery is not configured in the prototype.');return}if(authMode==='register')await call('/v1/auth/register','POST',{email,password});const result=await call<{access_token:string}>('/v1/auth/login','POST',{email,password});setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);saveRequest.current=null;setToken(result.access_token);setAuthOpen(false);setPassword('');if(guestDraft){setView('learning');notify('Signed in. Review your guest plan before choosing whether to save it.')}else notify('Signed in. Saved progress is now available.')}catch(x){fail(x)}finally{setBusy(false)}}
-async function logout(){if(token)try{await call('/v1/auth/logout','POST',undefined,token)}catch{}setToken(null);setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);setGuestDraft(null);saveRequest.current=null;setPendingSave(null);setPreferenceDraftDirty(false);resetSuccess();clearToasts();changeView('discover');pushToast('info','Signed out of this browser session.')}
+async function logout(){
+  if((preferenceDraftDirty||pendingSave!==null)&&!window.confirm(
+    'Sign out and discard unsaved account changes or an unconfirmed save?'
+  ))return
+  if(token)try{await call('/v1/auth/logout','POST',undefined,token)}catch{}
+  setToken(null);setAccount('');setSaved([]);setBookmarks([]);setSelected('')
+  setProgress(null);setPreferences(null);setGuestDraft(null)
+  saveRequest.current=null;setPendingSave(null);setPreferenceDraftDirty(false)
+  resetSuccess();clearToasts();setView('discover');setMobile(false);setError('')
+  pushToast('info','Signed out of this browser session.')
+}
 async function savePath(){if(!token){setAuthOpen(true);return}setBusy(true);try{const data=await call<{id:string;pathway:Pathway}>('/v1/me/pathways','POST',plan,token,{idempotencyKey:saveKey(plan,token,'pathway')});setSaved(s=>[{id:data.id,pathway:data.pathway,created_at:new Date().toISOString()},...s.filter(row=>row.id!==data.id)]);saveRequest.current=null;setSelected(data.id);setGuestDraft(null);setPendingSave(null);setPlanDirty(false);celebrate('pathway');changeView('learning');notify('Pathway saved.')}catch(x){if(isConnectionFailure(x)||(x instanceof ApiError&&x.code==='INVALID_RESPONSE'))setPendingSave('pathway');fail(x)}finally{setBusy(false)}}
 async function saveGuestPlan(){if(!token||!guestDraft)return;setBusy(true);try{const data=await call<{id:string;pathway:Pathway}>('/v1/me/pathways','POST',guestDraft,token,{idempotencyKey:saveKey(guestDraft,token,'guest')});setSaved(current=>[{id:data.id,pathway:data.pathway,created_at:new Date().toISOString()},...current.filter(row=>row.id!==data.id)]);saveRequest.current=null;setSelected(data.id);setGuestDraft(null);setPendingSave(null);celebrate('guest');setView('learning');notify('Guest learning choices saved as a new account pathway.')}catch(x){if(isConnectionFailure(x)||(x instanceof ApiError&&x.code==='INVALID_RESPONSE'))setPendingSave('guest');fail(x)}finally{setBusy(false)}}
 async function updatePreferences(changes:LearningPreferencesUpdate){if(!token)throw new Error('Sign in to save learning preferences.');setPreferencesBusy(true);try{const data=await call<LearningPreferences>('/v1/me/preferences','PATCH',changes,token);setPreferences(data);celebrate('preferences');notify('Learning preferences saved to your account.')}catch(x){fail(x);throw x}finally{setPreferencesBusy(false)}}
