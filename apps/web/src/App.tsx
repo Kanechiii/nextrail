@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
-import {ArrowRight,ArrowUpRight,BookOpen,Bookmark,Check,Compass,GitBranch,Layers,LoaderCircle,Lock,LogOut,Moon,Search,ShieldCheck,Sun,X} from 'lucide-react'
-import {call,isAuthFailure,type Course,type Skill,type Plan,type Pathway,type LearningPreferences,type LearningPreferencesUpdate} from './api'
+import {ArrowRight,ArrowUpRight,BookOpen,Bookmark,Check,CheckCircle2,Compass,GitBranch,Layers,LoaderCircle,Lock,LogOut,Moon,RefreshCw,Search,ShieldCheck,Sun,X} from 'lucide-react'
+import {call,isAuthFailure,isConnectionFailure,isRequestCancelled,type ApiError,type Course,type Skill,type Plan,type Pathway,type LearningPreferences,type LearningPreferencesUpdate} from './api'
 import CourseDetails,{providerTone} from './CourseDetails'
 import {useWorkspaceMotion} from './motion'
 import LearningRouteTimeline from './LearningRouteTimeline'
@@ -10,6 +10,7 @@ import {reviewedCourseUrl,sourceReviewText,listingReviewState} from './sourcePre
 import AccountPreferencesPanel from './AccountPreferencesPanel'
 import {CourseCardSkeletons,DashboardSkeleton,PreferencesSkeleton,ProgressSkeleton,RouteSkeleton,SkillChoicesSkeleton} from './LoadingSkeletons'
 import {FeedbackToasts,useFeedbackToasts} from './FeedbackToasts'
+import {useDebouncedValue,useDelayedPending,useActionSuccess} from './useFeedbackTiming'
 type View='discover'|'pathway'|'learning'
 type Saved={id:string;pathway:Pathway;created_at:string}
 type Progress={completed:number;total:number;milestones:{skill_id:string;status:string}[]}
@@ -21,6 +22,7 @@ const [detailCourse,setDetailCourse]=useState<Course|null>(null)
 const [compared,setCompared]=useState<Course[]>([])
 const [view,setView]=useState<View>('discover'),[mobile,setMobile]=useState(false),[online,setOnline]=useState(false),[skills,setSkills]=useState<Skill[]>(startingSkills),[courses,setCourses]=useState<Course[]>([]),[previewExamples,setPreviewExamples]=useState(false)
 const [courseLoading,setCourseLoading]=useState(true),[catalogError,setCatalogError]=useState(''),[catalogRequest,setCatalogRequest]=useState(0),[skillsLoading,setSkillsLoading]=useState(true)
+const [connectionProblem,setConnectionProblem]=useState<'offline'|'degraded'|null>(null),[connectionChecking,setConnectionChecking]=useState(false)
 const [query,setQuery]=useState(''),[provider,setProvider]=useState(''),[skill,setSkill]=useState(''),[cost,setCost]=useState(''),[certificateCost,setCertificateCost]=useState(''),[error,setError]=useState('')
 const [plan,setPlan]=useState<Plan>({career_goal:'Frontend Developer',target_skill_ids:['css','javascript'],known_skill_ids:[],weekly_hours:6,zero_budget:true})
 const [pathway,setPathway]=useState<Pathway|null>(null),[busy,setBusy]=useState(false),[generating,setGenerating]=useState(false)
@@ -32,14 +34,26 @@ const [guestDraft,setGuestDraft]=useState<Plan|null>(null)
 const [accountLoadError,setAccountLoadError]=useState(''),[accountRequest,setAccountRequest]=useState(0),[accountLoading,setAccountLoading]=useState(false)
 const [progressLoading,setProgressLoading]=useState(false),[progressError,setProgressError]=useState(''),[progressRequest,setProgressRequest]=useState(0)
 const saveRequest=useRef<{signature:string;token:string;key:string}|null>(null)
+const catalogAbort=useRef<AbortController|null>(null)
 const {toasts,push:pushToast,dismiss:dismissToast,clear:clearToasts}=useFeedbackToasts()
+const {successKey,celebrate,reset:resetSuccess}=useActionSuccess()
+const debouncedQuery=useDebouncedValue(query)
+const searchSettling=query!==debouncedQuery
+const catalogPending=!previewExamples&&(courseLoading||searchSettling)
+const courseSkeletonVisible=useDelayedPending(catalogPending)
+const routeSkeletonVisible=useDelayedPending(generating)
+const dashboardSkeletonVisible=useDelayedPending(accountLoading)
+const preferencesSkeletonVisible=useDelayedPending(preferencesLoading)
+const progressSkeletonVisible=useDelayedPending(progressLoading)
+const skillsSkeletonVisible=useDelayedPending(skillsLoading)
 const workspaceRoot=useRef<HTMLDivElement>(null)
 useWorkspaceMotion(workspaceRoot,view,previewExamples,pathway?.milestones.length??0,progress?.completed??0)
 const notify=(message:string)=>{pushToast('success',message);setError('')}
-const fail=(reason:unknown)=>{const message=reason instanceof Error?reason.message:'Request failed';setError(message);pushToast('error',message)}
+const markConnectionFailure=(reason:unknown)=>{if(isConnectionFailure(reason)){setConnectionProblem((reason as ApiError).status===503?'degraded':'offline');setOnline(false)}}
+const fail=(reason:unknown)=>{markConnectionFailure(reason);const message=reason instanceof Error?reason.message:'Request failed';setError(message);pushToast('error',message)}
 const saveKey=(candidate:Plan,ownerToken:string,kind:'pathway'|'guest')=>{const signature=kind+':'+JSON.stringify(candidate);if(!saveRequest.current||saveRequest.current.signature!==signature||saveRequest.current.token!==ownerToken)saveRequest.current={signature,token:ownerToken,key:crypto.randomUUID()};return saveRequest.current.key}
-useEffect(()=>{let active=true;call<{items:Skill[]}>('/v1/skills').then(d=>{if(active){setSkills(d.items);setOnline(true)}}).catch(()=>{if(active)setOnline(false)}).finally(()=>{if(active)setSkillsLoading(false)});return()=>{active=false}},[])
-useEffect(()=>{const params=new URLSearchParams({limit:'100'});if(query)params.set('query',query);if(provider)params.set('provider_id',provider);if(skill)params.set('skill_id',skill);if(cost)params.set('access_cost',cost);if(certificateCost)params.set('certificate_cost',certificateCost);let alive=true;setCourseLoading(true);setCatalogError('');call<{items:Course[]}>('/v1/courses?'+params).then(d=>{if(alive){setCourses(d.items);setOnline(true)}}).catch(()=>{if(alive){setCourses([]);setOnline(false);setCatalogError('Course listings could not be loaded. Check your connection and retry.')}}).finally(()=>{if(alive)setCourseLoading(false)});return()=>{alive=false}},[query,provider,skill,cost,certificateCost,catalogRequest])
+useEffect(()=>{let active=true;call<{items:Skill[]}>('/v1/skills').then(d=>{if(active){setSkills(d.items);setOnline(true);setConnectionProblem(null)}}).catch(reason=>{if(active)markConnectionFailure(reason)}).finally(()=>{if(active)setSkillsLoading(false)});return()=>{active=false}},[])
+useEffect(()=>{catalogAbort.current?.abort();if(previewExamples){setCourseLoading(false);setCatalogError('');return}const controller=new AbortController();catalogAbort.current=controller;const params=new URLSearchParams({limit:'100'});if(debouncedQuery)params.set('query',debouncedQuery);if(provider)params.set('provider_id',provider);if(skill)params.set('skill_id',skill);if(cost)params.set('access_cost',cost);if(certificateCost)params.set('certificate_cost',certificateCost);let active=true;setCourseLoading(true);setCatalogError('');call<{items:Course[]}>('/v1/courses?'+params,'GET',undefined,undefined,{signal:controller.signal}).then(data=>{if(active){setCourses(data.items);setOnline(true);setConnectionProblem(null)}}).catch(reason=>{if(!active||isRequestCancelled(reason))return;setCourses([]);setCatalogError('Course listings could not be loaded. Check your connection and retry.');markConnectionFailure(reason)}).finally(()=>{if(active)setCourseLoading(false)});return()=>{active=false;controller.abort();if(catalogAbort.current===controller)catalogAbort.current=null}},[debouncedQuery,provider,skill,cost,certificateCost,catalogRequest,previewExamples])
 useEffect(()=>{if(!token){setAccountLoadError('');setAccountLoading(false);return}let active=true;setAccountLoadError('');setAccountLoading(true);Promise.all([call<{email:string}>('/v1/me','GET',undefined,token),call<{items:Saved[]}>('/v1/me/pathways','GET',undefined,token),call<{resource_ids:string[]}>('/v1/me/courses','GET',undefined,token)]).then(([a,p,c])=>{if(active){setAccount(a.email);setSaved(p.items);setBookmarks(c.resource_ids);setSelected(s=>s||p.items[0]?.id||'');setAccountLoadError('')}}).catch(reason=>{if(active){if(isAuthFailure(reason)){setToken(null);setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);setError('Session ended. Sign in again.');pushToast('error','Session ended. Sign in again.')}else{setAccountLoadError('Account data is temporarily unavailable. Retry loading without signing out.')}}}).finally(()=>{if(active)setAccountLoading(false)});return()=>{active=false}},[token,accountRequest,pushToast])
 useEffect(()=>{if(!token){setPreferences(null);setPreferencesProblem('');setPreferencesLoading(false);return}let active=true;setPreferences(null);setPreferencesProblem('');setPreferencesLoading(true);call<LearningPreferences>('/v1/me/preferences','GET',undefined,token).then(data=>{if(active)setPreferences(data)}).catch(()=>{if(active)setPreferencesProblem('Could not load learning preferences. Please retry.')}).finally(()=>{if(active)setPreferencesLoading(false)});return()=>{active=false}},[token,preferencesRequest])
 useEffect(()=>{if(!token||!selected){setProgress(null);setProgressError('');setProgressLoading(false);return}setProgress(null);setProgressError('');setProgressLoading(true);let alive=true;call<Progress>('/v1/me/pathways/'+encodeURIComponent(selected)+'/progress','GET',undefined,token).then(p=>{if(alive){setProgress(p);setProgressError('')}}).catch(reason=>{if(alive){setProgressError(reason instanceof Error?reason.message:'Unable to load progress.')}}).finally(()=>{if(alive)setProgressLoading(false)});return()=>{alive=false}},[token,selected,progressRequest])
