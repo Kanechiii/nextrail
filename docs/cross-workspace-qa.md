@@ -105,3 +105,5 @@ Do not deploy publicly or activate paid services on the basis of this
 register. The ten formal production acceptance gates remain independently
 blocked by Phase 29 until all evidence and explicit release authorization
 are obtained.
+
+Phase 34 has been merged; the provider-specific browser scenario remains pending human visual QA.
