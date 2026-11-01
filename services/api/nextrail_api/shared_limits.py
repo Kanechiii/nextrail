@@ -35,8 +35,24 @@ class SQLiteFixedWindowLimiter:
         self.key = key
         self.clock = time.time if clock is None else clock
         self.max_keys = max_keys
+        # Key changes must not silently reset outstanding client budgets.
+        key_check = hmac.new(key, b"nextrail-rate-limit-key-v1", hashlib.sha256).hexdigest()
         try:
-            self.connection.execute(TABLE)
+            with atomic(self.connection):
+                self.connection.execute(TABLE)
+                self.connection.execute("""CREATE TABLE IF NOT EXISTS api_rate_limits_meta (
+                    id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL
+                )""")
+                self.connection.execute(
+                    "INSERT OR IGNORE INTO api_rate_limits_meta(id,key_check) VALUES(1,?)",
+                    (key_check,),
+                )
+                rows = self.connection.execute(
+                    "SELECT id,key_check FROM api_rate_limits_meta"
+                ).fetchall()
+                if (len(rows) != 1 or rows[0]["id"] != 1
+                        or not hmac.compare_digest(rows[0]["key_check"], key_check)):
+                    raise ValueError("Shared request protection key changed; refusing startup")
         except sqlite3.Error as exc:
             raise HTTPException(503, "Request protection unavailable") from exc
 
