@@ -1,4 +1,5 @@
 """Account-scoped learning progress and append-only audit storage."""
+import hashlib
 import json
 import re
 import sqlite3
@@ -219,7 +220,9 @@ class LearningStore:
             "AND entity_id=? AND operation='status_changed'",
             (owner, identifier),
         ).fetchone()
-        return str(row["revision"])
+        # Do not reveal the global audit sequence to account clients.
+        identity = f"{owner}:{identifier}:{row['revision']}"
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
     def set_progress(self, owner, identifier, skill, status, *, expected_revision=None):
         owner, skill = owner_id(owner), slug(skill)
