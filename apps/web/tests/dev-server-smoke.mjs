@@ -142,7 +142,12 @@ async function browserSmoke(binary){
     await expression("document.querySelector('.tabs button:nth-child(2)')?.click()")
     await waitFor("Boolean(document.querySelector('.card-detail-trigger'))")
     await expression("document.querySelector('.card-detail-trigger').focus();document.querySelector('.card-detail-trigger').click()")
-    await waitFor("Boolean(document.querySelector('dialog.course-dialog[open]'))")
+    try{
+      await waitFor("Boolean(document.querySelector('dialog.course-dialog[open]'))")
+    }catch(error){
+      const diagnostic=await expression("({dialog:!!document.querySelector('.course-dialog'),recovery:document.querySelector('.workspace-recovery')?.textContent,history:history.state,details:document.querySelector('.card-detail-trigger')?.textContent})")
+      throw new Error(String(error)+'; dialog state: '+JSON.stringify(diagnostic))
+    }
     await expression("history.back()")
     await waitFor("!document.querySelector('dialog.course-dialog')")
     await waitFor("document.activeElement?.classList.contains('card-detail-trigger')===true")
