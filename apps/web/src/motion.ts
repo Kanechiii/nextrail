@@ -53,7 +53,7 @@ export function useWorkspaceMotion(
           })
         }
 
-        const steps=Array.from(element.querySelectorAll<HTMLElement>('.output .step')).slice(0,MAX_STEPS)
+        const steps=Array.from(element.querySelectorAll<HTMLElement>('.output .step, .journey-step')).slice(0,MAX_STEPS)
         if(steps.length)animate(steps,{
           opacity:{from:0,to:1},
           y:{from:12,to:0},
