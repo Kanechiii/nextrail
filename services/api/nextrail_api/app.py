@@ -17,6 +17,7 @@ from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
+from .reliability import database_connection_ready
 from .release import ReleaseError, load_reviewed_bundle
 
 
@@ -150,7 +151,9 @@ def create_app(
 
     @app.get("/ready")
     async def ready():
-        current = active_catalog()
+        active_catalog()
+        if not database_connection_ready(app.state.db):
+            raise HTTPException(503, "Database unavailable")
         return {
             "status": "ready",
             "catalog_mode": "reviewed_snapshot" if release is not None else "sample",
