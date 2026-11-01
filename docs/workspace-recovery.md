@@ -22,8 +22,9 @@ migration is authorized by this work.
 
 ## Progress concurrency details
 
-The revision is generated from the latest owner-scoped, append-only
-`milestone/status_changed` audit event ID. This prevents an
+The revision is an opaque, owner/pathway-bound SHA-256 digest derived from
+the latest append-only `milestone/status_changed` audit event ID. The raw
+global audit sequence is never returned to learners. This prevents an
 update-then-revert ("ABA") sequence from silently appearing unchanged.
 The revision is **not** a sensitive token and is invalidated on every
 actual milestone change. Invalid conditional headers return 422, and
