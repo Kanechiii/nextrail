@@ -52,6 +52,46 @@ credentials, never requires a cloud service, and never schedules backups itself.
 Use a fresh backup filename for every independent backup. Do not run SQLite file
 copy operations directly against a live WAL database.
 
+## Windows snapshot compatibility and failure recovery
+
+On Windows, the backup publisher uses a same-directory **exclusive rename**
+instead of requiring a filesystem hard link. It also flushes the temporary
+snapshot through a writable file descriptor, avoiding a Windows read-only
+`fsync` compatibility failure. On other supported operating systems, atomic
+no-overwrite hard-link publication is retained. The source is always read
+without modifying it and the temporary snapshot is validated before publishing.
+
+When a backup fails, the CLI reports the stage and, when available, a
+non-sensitive numeric OS/SQLite error code. The publisher never overwrites an
+existing destination. **Do not run `inspect` on a failed output path**: that
+backup file was not created. If Windows still blocks a publication, check
+the error code, available disk space, filesystem permissions, antivirus
+file-locking and whether the destination directory supports ordinary renames.
+Never delete or replace the original SQLite database as a workaround.
+
+For a reliable PowerShell check, run the complete sequence below **from the
+repository root**. It verifies the source first, generates a fresh unique
+destination, and aborts before inspection if backup fails:
+
+```powershell
+$source = Join-Path (Get-Location) "data/nextrail-local.sqlite"
+if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Source database missing: $source" }
+python scripts/database_recovery.py inspect --source $source
+if ($LASTEXITCODE -ne 0) { throw "Source database validation failed" }
+$backup = Join-Path (Get-Location) ("data/nextrail-backup-{0}.sqlite" -f [guid]::NewGuid().ToString("N"))
+python scripts/database_recovery.py backup --source $source --destination $backup
+if ($LASTEXITCODE -ne 0) { throw "Backup failed; do not inspect the missing backup file" }
+if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) { throw "Backup output was not created" }
+python scripts/database_recovery.py inspect --source $backup
+if ($LASTEXITCODE -ne 0) { throw "Backup validation failed" }
+Write-Host "Validated backup:" $backup
+```
+
+A PowerShell variable such as `$stamp` is scoped to its terminal session:
+initialize it before referring to it, or use the self-contained snippet
+above. No changes to live backend authentication/session data are required
+for the backup test.
+
 ## Recovery drill without overwriting data
 
 Stop the backend before changing which database path it uses. Restore an approved
