@@ -7,6 +7,7 @@ const app=read('../src/App.tsx')
 const journey=read('../src/LearningRouteTimeline.tsx')
 const compare=read('../src/CourseComparison.tsx')
 const styles=read('../src/dashboard-insights.css')
+const motion=read('../src/motion.ts')
 const entry=read('../src/main.tsx')
 
 test('timeline uses backend prerequisite order and optional saved progress',()=>{
@@ -25,6 +26,7 @@ test('timeline does not invent learning achievements or provider links',()=>{
   assert.match(journey,/aria-label="Learning route timeline"/)
   assert.match(journey,/aria-expanded=\{current\}/)
   assert.match(journey,/aria-controls=\{detailId\}/)
+  assert.match(journey,/setActive\(current\?false:milestone\.skill_id\)/)
   assert.match(journey,/onToggle&&<button/)
   assert.match(journey,/onToggle\(milestone\.skill_id/)
   assert.doesNotMatch(journey,/<a href=/)
@@ -37,6 +39,8 @@ test('saved dashboard drives status updates through its existing authenticated A
   assert.match(app,/role="progressbar"/)
   assert.match(app,/saved\.find\(item=>item\.id===selected\)\?\.pathway/)
   assert.match(app,/Saved course reference/)
+  assert.match(app,/setProgress\(null\);let alive=true/)
+  assert.match(app,/setSelected\(''\)/)
 })
 
 test('comparison is bounded to three and clears on filter and catalog-mode changes',()=>{
@@ -73,6 +77,7 @@ test('dashboard controls and responsive styles support keyboard and reduced moti
   assert.match(journey,/type="button"/)
   assert.match(styles,/@media\(max-width:760px\)/)
   assert.match(styles,/@media\(prefers-reduced-motion:reduce\)/)
+  assert.match(motion,/\.output \.step, \.journey-step/)
   assert.match(styles,/\.layout\[data-theme="light"\] \.journey-step-toggle/)
   assert.match(styles,/\.layout\[data-theme="light"\] \.comparison-panel/)
   assert.match(entry,/import '\.\/dashboard-insights\.css'/)
