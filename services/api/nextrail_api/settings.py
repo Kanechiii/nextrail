@@ -65,3 +65,24 @@ def shared_rate_limit_key_from_env(env: Mapping[str, str] | None = None) -> byte
     if database_path_from_env(values) == ":memory:":
         raise ConfigurationError("Shared request limits require durable SQLite storage")
     return bytes.fromhex(raw)
+
+
+def public_origin_from_env(env: Mapping[str, str] | None = None) -> str | None:
+    """Public mode is opt-in and requires durable storage and shared throttling."""
+    from .public_boundary import PublicBoundaryError, public_host
+
+    values = os.environ if env is None else env
+    origin = values.get("NEXTRAIL_PUBLIC_ORIGIN")
+    if origin is None:
+        return None
+    try:
+        public_host(origin)
+    except PublicBoundaryError as exc:
+        raise ConfigurationError("Invalid canonical HTTPS public origin") from exc
+    if values.get("NEXTRAIL_REQUIRE_DURABLE_STORAGE") != "true":
+        raise ConfigurationError("Public request boundary requires explicit durable storage")
+    if database_path_from_env(values) == ":memory:":
+        raise ConfigurationError("Public request boundary requires a file-backed database")
+    if shared_rate_limit_key_from_env(values) is None:
+        raise ConfigurationError("Public request boundary requires shared rate limiting")
+    return origin
