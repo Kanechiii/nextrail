@@ -8,6 +8,8 @@ const details=source('../src/CourseDetails.tsx')
 const journey=source('../src/LearningRouteTimeline.tsx')
 const comparison=source('../src/CourseComparison.tsx')
 const profile=source('../src/AccountPreferencesPanel.tsx')
+const evidence=source('../src/ProviderEvidence.tsx')
+const review=source('../src/sourcePresentation.ts')
 const motion=source('../src/motion.ts')
 const css=[source('../src/workspace-enhancements.css'),source('../src/motion.css'),source('../src/dashboard-insights.css'),source('../src/account-experience.css')].join('\n')
 
@@ -65,4 +67,13 @@ test('motion respects accessibility and responsive theme contracts',()=>{
   assert.match(css,/data-theme="light"/)
   assert.match(css,/:focus-visible/)
   assert.doesNotMatch(motion,/setInterval|loop:\s*true/)
+})
+
+test('reviewed provider metadata follows the Phase 34 source-gating contract',()=>{
+  assert.match(evidence,/listingReviewState\(course\)/)
+  assert.match(evidence,/accessNote\(course\)/)
+  assert.match(evidence,/reviewedCourseUrl\(course\)/)
+  assert.match(evidence,/Eligibility is provider-dependent/)
+  assert.match(review,/if\(listingReviewState\(course\)!=='reviewed'\|\|!course\.url\)return null/)
+  assert.match(app,/aria-label="Filter certificate cost"/)
 })
