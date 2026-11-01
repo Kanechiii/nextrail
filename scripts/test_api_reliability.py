@@ -62,7 +62,7 @@ class DatabaseLivenessTests(unittest.TestCase):
 class GuestPerformanceSmokeTests(unittest.TestCase):
     def test_nearest_rank_percentile_is_deterministic(self):
         self.assertEqual(percentile_95([4, 2, 3, 1]), 4)
-        self.assertEqual(percentile_95([1] * 19 + [99]), 99)
+        self.assertEqual(percentile_95([1] * 18 + [99] * 2), 99)
 
     def test_invalid_percentile_samples_fail(self):
         for value in ([], [-1], [float("nan")], [float("inf")]):
