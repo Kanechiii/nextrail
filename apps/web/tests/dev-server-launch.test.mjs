@@ -37,7 +37,7 @@ test('safe Windows launch works for script paths with spaces, without a shell',(
 })
 
 test('missing or invalid npm JS CLI fails with a clear setup error',()=>{
-  for(const cli of [undefined,'npm.cmd','',42]){
+  for(const cli of [null,'npm.cmd','',42]){
     assert.throws(
       ()=>devServerInvocation({platform:'win32',nodePath:process.execPath,npmCli:cli}),
       /npm run test:dev/,
