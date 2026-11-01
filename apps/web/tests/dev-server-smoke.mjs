@@ -174,6 +174,16 @@ async function browserSmoke(binary){
       'Focused toast close should return focus to stable control')
     console.log('PASS: Confirmed guest action toast semantics and keyboard focus')
 
+    await send('Emulation.setDeviceMetricsOverride',{
+      width:390,height:844,deviceScaleFactor:1,mobile:true,
+    })
+    await sleep(240)
+    const mobile=await expression("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth,menu:getComputedStyle(document.querySelector('.mobile-menu')).display})")
+    assert.ok(mobile.content<=mobile.viewport+2,'Mobile viewport must not overflow horizontally: '+JSON.stringify(mobile))
+    assert.notEqual(mobile.menu,'none','Mobile navigation affordance must be visible')
+    await send('Emulation.clearDeviceMetricsOverride')
+    console.log('PASS: Chrome mobile viewport has accessible navigation and no page overflow')
+
     await expression("document.querySelector('nav button:first-child')?.click()")
     await send('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0})
     await expression("document.querySelector('input[aria-label=\\\"Search courses\\\"]').focus()")
