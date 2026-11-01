@@ -46,10 +46,14 @@ stored on D: where supported.
 
 ## Current Status
 
-Phase 01 planning approved.
-Phase 02 repository initialization in progress.
+Phases 01–19 have completed and been merged into `main`; backend contracts,
+reviewed offline course publication, optional accounts and progress APIs,
+local recovery, and pinned release gates have been validated in CI.
+The current stabilization effort closes zero-budget free-course eligibility
+gaps before additional frontend integration.
 
-No production deployment is currently established.
+No production deployment, paid services, live provider ingestion, or hosted
+cross-device account storage is currently established.
 
 ## Governance
 

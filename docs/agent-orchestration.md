@@ -25,7 +25,7 @@ Only the fixed loopback Ollama host may be used; unknown and hosted providers ar
 
 Model output may influence which already-eligible skill is prioritized; the model cannot generate a course, change the catalog, or override prerequisite constraints.
 
-Catalog evidence remains conservative. Zero-budget pathways do not attach courses because there is no claim-level verification of free access. Synthetic fixtures must not be treated as verified offerings.
+Catalog evidence remains conservative. Zero-budget pathways may attach a course only when the API has explicitly activated a Phase 19 SHA-256-pinned, reviewer-validated release whose provenance includes approved and current availability and **free access** claims. The runtime passes an immutable allowlist of these free-access course IDs through both planning and the quality gate. Bare catalog records, including those with a `free` flag, cannot grant zero-budget eligibility by themselves. Synthetic fixtures must not be treated as verified offerings. Free course access does not imply a free certificate.
 
 The workflow uses the established guest-first planning interface. No user profile, authentication, persistence, API endpoint, cloud deployment, or live source ingestion is introduced here.
 
