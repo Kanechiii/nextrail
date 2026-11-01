@@ -46,14 +46,26 @@ stored on D: where supported.
 
 ## Current Status
 
-Phases 01–19 have completed and been merged into `main`; backend contracts,
-reviewed offline course publication, optional accounts and progress APIs,
-local recovery, and pinned release gates have been validated in CI.
-The current stabilization effort closes zero-budget free-course eligibility
-gaps before additional frontend integration.
+Nextrail is a **local-first development prototype** with guest catalog
+discovery, deterministic prerequisite-aware learning pathways, optional
+account learning preferences and self-reported progress, and an enhanced
+provider-evidence-aware Learning Route Workspace.
 
-No production deployment, paid services, live provider ingestion, or hosted
-cross-device account storage is currently established.
+Offline provider authorizations, course publication, database restore,
+synthetic concurrency and pre-release security checks are enforced in
+the regression workflow. The sample source registry grants **zero real
+providers** and the production acceptance register remains blocked.
+Do not interpret successful CI as a public-launch approval.
+
+No public deployment, paid service, real provider ingestion, production
+email delivery, or hosted cross-device account storage is established.
+
+## Controlled Local Demo
+
+See [Controlled Local Demo](docs/controlled-local-demo.md) for a
+loopback-only, synthetic-data walkthrough and release blockers.
+Run `python scripts/verify_local_demo.py` before showing a disposable
+localhost session.
 
 ## Governance
 
