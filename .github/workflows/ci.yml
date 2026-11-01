@@ -49,11 +49,13 @@ jobs:
         run: python scripts/verify_source_authorizations.py --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json
       - name: Verify pre-release acceptance is blocked without evidence
         run: python scripts/verify_pre_release_acceptance.py --manifest data/pre-release-acceptance.sample.json --expect-blocked
+      - name: Confirm desktop/mobile UI acceptance remains blocked without review
+        run: python scripts/verify_ui_quality.py --manifest data/ui-quality-acceptance.sample.json --expect-blocked
       - name: Compile backend modules
         run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
       - name: Install web dependencies
         working-directory: apps/web
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Test web experience
         working-directory: apps/web
         run: npm test
