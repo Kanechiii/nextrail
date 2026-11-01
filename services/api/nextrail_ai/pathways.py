@@ -95,10 +95,15 @@ def _required_skills(
 
 
 def _eligible_resources(
-    catalog: Mapping[str, Any], skill_id: str, completed: set[str], zero_budget: bool
+    catalog: Mapping[str, Any], skill_id: str, completed: set[str], zero_budget: bool,
+    verified_free_resource_ids: frozenset[str],
 ) -> list[str]:
-    if zero_budget:
-        return []
+    """For zero-budget plans, require provenance-approved free access.
+
+    A plain catalog 'free' flag does not establish claim-level verification.
+    The allowlist is supplied only from an activated, validated Phase 19
+    reviewed release; callers without that release must leave it empty.
+    """
     providers = {
         p.get("id") for p in catalog.get("providers", [])
         if isinstance(p, dict) and p.get("authorization") == "approved"
@@ -116,6 +121,10 @@ def _eligible_resources(
             or not evidence.get("source_url")
             or not evidence.get("checked_at")
             or resource.get("access_cost") not in {"free", "paid", "conditional"}
+            or (zero_budget and (
+                resource.get("access_cost") != "free"
+                or resource.get("id") not in verified_free_resource_ids
+            ))
             or skill_id not in resource.get("skills", [])
             or not set(resource.get("prerequisites", [])).issubset(completed)
         ):
@@ -129,12 +138,16 @@ def build_pathway(
     catalog: Mapping[str, Any],
     request: PlanningRequest,
     provider: PriorityProvider | None = None,
+    *, verified_free_resource_ids: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Return the v1 pathway contract; never introduce model-created catalog IDs."""
     if not isinstance(request, PlanningRequest):
         raise TypeError("PlanningRequest required")
     if not isinstance(catalog, Mapping):
         raise ValueError("Invalid catalog")
+    if (not isinstance(verified_free_resource_ids, frozenset)
+            or any(not isinstance(rid, str) for rid in verified_free_resource_ids)):
+        raise ValueError("Verified free resource policy must be an immutable ID set")
     skills = _skills(catalog)
     required = _required_skills(skills, request.target_skill_ids)
     unknown = set(request.known_skill_ids) - skills.keys()
@@ -165,7 +178,9 @@ def build_pathway(
             except Exception:
                 selected = ready[0]
 
-        resources = _eligible_resources(catalog, selected, completed, request.zero_budget)
+        resources = _eligible_resources(
+            catalog, selected, completed, request.zero_budget, verified_free_resource_ids
+        )
         milestones.append({
             "order": len(milestones) + 1,
             "skill_id": selected,

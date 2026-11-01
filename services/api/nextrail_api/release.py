@@ -96,6 +96,7 @@ class ReviewedBundle:
     expires_at: datetime
     reviewed_course_count: int
     sha256: str
+    verified_free_resource_ids: frozenset[str]
 
     def current_catalog(self, *, now=None):
         if _now(now) > self.expires_at:
@@ -252,4 +253,11 @@ def load_reviewed_bundle(path, expected_sha256, *, now=None):
         expires_at=expires_at,
         reviewed_course_count=len(catalog["resources"]),
         sha256=digest,
+        # The full reviewed bundle has already passed provenance, provider,
+        # official-domain and claim-freshness gates. Bare v1 catalogs cannot
+        # grant zero-budget access by setting an arbitrary "free" flag.
+        verified_free_resource_ids=frozenset(
+            resource["id"] for resource in catalog["resources"]
+            if resource["access_cost"] == "free"
+        ),
     )

@@ -143,14 +143,23 @@ class SkillGapAgent:
 class PlanningAgent:
     """Delegate bounded optional prioritization to the existing local provider."""
 
-    def run(self, catalog, request, priority_provider: PriorityProvider | None):
-        return build_pathway(catalog, request, priority_provider)
+    def run(
+        self, catalog, request, priority_provider: PriorityProvider | None,
+        *, verified_free_resource_ids: frozenset[str] = frozenset(),
+    ):
+        return build_pathway(
+            catalog, request, priority_provider,
+            verified_free_resource_ids=verified_free_resource_ids,
+        )
 
 
 class QualityAgent:
     """Validate the final v1 pathway against the approved catalog and skill graph."""
 
-    def run(self, catalog, request, expected_skills, pathway, resources):
+    def run(
+        self, catalog, request, expected_skills, pathway, resources,
+        *, verified_free_resource_ids: frozenset[str] = frozenset(),
+    ):
         if not isinstance(pathway, dict) or set(pathway) != {
             "schema_version", "career_goal", "weekly_hours", "generation_mode", "milestones"
         }:
@@ -190,8 +199,13 @@ class QualityAgent:
                         or skill not in resource["skills"]
                         or not set(resource["prerequisites"]).issubset(completed)):
                     raise OrchestrationError("Unverified, synthetic or ineligible course")
-                if request.zero_budget:
-                    raise OrchestrationError("Zero-budget course claim lacks claim-level verification")
+                if request.zero_budget and (
+                    rid not in verified_free_resource_ids
+                    or resource["access_cost"] != "free"
+                ):
+                    raise OrchestrationError(
+                        "Zero-budget course lacks reviewed free-access evidence"
+                    )
             completed.add(skill)
             visited.add(skill)
         if visited != expected_skills:
