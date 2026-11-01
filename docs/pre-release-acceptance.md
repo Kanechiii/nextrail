@@ -54,6 +54,34 @@ aware review timestamp no older than 90 days, distinct existing evidence file
 Files are read but never changed. A valid `evidence_complete` report still
 includes `production_approval=false`.
 
+## Final sign-off separation (Phase 29 hardening)
+
+The last gate, `manual_release_approval`, now follows stricter, fail-closed
+sequencing than the nine prerequisite checks:
+
+- All nine prerequisite gates must have individual current approval records
+  and distinct, SHA-256-matched local evidence files before the final release
+  sign-off can be recorded. A final approval alongside any pending prerequisite
+  is **invalid**, rather than silently counted as an approved release.
+- The recorded final release reviewer must have a **different pseudonymous
+  reviewer identifier from every reviewer** who approved a prerequisite gate.
+  This provides a narrow separation-of-duties consistency check.
+- The final review timestamp must be **strictly later than** all prerequisite
+  review timestamps, after normalizing time zones to UTC. A stale, backdated,
+  simultaneous, or prematurely recorded final sign-off is refused.
+- The checker reports `manual_signoff_separated=true` only when this recorded
+  separation and order is internally valid. This is **not proof of actual
+  reviewer independence** and does not authorize deployment.
+
+Reviewers' IDs and dates are operator assertions, not verified identities or
+cryptographic signatures. One person could falsify two identities and a SHA-256
+pin; this tool cannot detect that. Keep actual approvals and sensitive evidence
+outside GitHub and independently verify the reviewers, provider permissions,
+deployment boundaries, host security, backup recovery, incident response and
+the current revision before authorizing a release. If an independent reviewer
+is not available, **leave the final gate pending**. Do not fabricate an
+approval to make the sample check pass.
+
 **Do not place actual production approval evidence, real account records,
 provider credentials, access tokens, private terms or encryption keys in
 the repository.** Store sensitive evidence in a protected local/operator
