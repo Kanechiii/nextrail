@@ -16,6 +16,7 @@ from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
+from .shared_limits import SQLiteFixedWindowLimiter
 from .release import ReleaseError, load_reviewed_bundle
 
 
@@ -70,7 +71,10 @@ class PreferencesUpdate(StrictBody):
 def create_app(
     *, database_path=":memory:", catalog=None, reset_delivery=None,
     reviewed_catalog_path=None, reviewed_catalog_sha256=None, release_clock=None,
+    shared_rate_limit_key=None,
 ):
+    if shared_rate_limit_key is not None and database_path == ":memory:":
+        raise ValueError("Shared request limits require durable SQLite storage")
     if (reviewed_catalog_path is None) != (reviewed_catalog_sha256 is None):
         raise ReleaseError("Reviewed catalog path and SHA-256 must be configured together")
     if catalog is not None and reviewed_catalog_path is not None:
@@ -97,13 +101,16 @@ def create_app(
         app.state.auth = AccountStore(connection)
         app.state.preferences = AccountPreferencesStore(connection)
         app.state.learning = LearningStore(connection)
+        app.state.limiter = (
+            SQLiteFixedWindowLimiter(connection, shared_rate_limit_key)
+            if shared_rate_limit_key is not None else FixedWindowLimiter()
+        )
         try:
             yield
         finally:
             connection.close()
 
     app = FastAPI(title="Nextrail API", version="0.1.0", lifespan=lifespan)
-    limiter = FixedWindowLimiter()
 
     @app.middleware("http")
     async def privacy_headers(request: Request, call_next):
@@ -156,7 +163,7 @@ def create_app(
     async def courses(request: Request, query: str = "", provider_id: str | None = None,
                 skill_id: str | None = None, access_cost: str | None = None,
                 certificate_cost: str | None = None, limit: int = 20):
-        limiter.enforce(request, "courses", 120)
+        app.state.limiter.enforce(request, "courses", 120)
         try:
             return {"items": discover_courses(
                 active_catalog(), query=query, provider_id=provider_id, skill_id=skill_id,
@@ -192,12 +199,12 @@ def create_app(
 
     @app.post("/v1/pathways/preview")
     async def preview(input: PlanInput, request: Request):
-        limiter.enforce(request, "pathway_preview", 30)
+        app.state.limiter.enforce(request, "pathway_preview", 30)
         return planning(input)
 
     @app.post("/v1/auth/register", status_code=201)
     async def register(input: Credentials, request: Request):
-        limiter.enforce(request, "register", 6)
+        app.state.limiter.enforce(request, "register", 6)
         try:
             auth().register(input.email, input.password)
             return {"created": True}
@@ -206,7 +213,7 @@ def create_app(
 
     @app.post("/v1/auth/login")
     async def login(input: Credentials, request: Request):
-        limiter.enforce(request, "login", 12)
+        app.state.limiter.enforce(request, "login", 12)
         try:
             return auth().login(input.email, input.password)
         except AuthError:
@@ -237,7 +244,7 @@ def create_app(
         request: Request, authorization: str = Header(),
         owner: str = Depends(current_owner),
     ):
-        limiter.enforce(request, "revoke_other_sessions", 12)
+        app.state.limiter.enforce(request, "revoke_other_sessions", 12)
         return {"revoked_count": auth().revoke_other_sessions(authorization[7:])}
 
     @app.post("/v1/me/password")
@@ -246,7 +253,7 @@ def create_app(
         authorization: str = Header(),
         owner: str = Depends(current_owner),
     ):
-        limiter.enforce(request, "change_password", 5)
+        app.state.limiter.enforce(request, "change_password", 5)
         try:
             return {
                 "updated": auth().change_password(
@@ -262,7 +269,7 @@ def create_app(
         request: Request, authorization: str = Header(),
         owner: str = Depends(current_owner),
     ):
-        limiter.enforce(request, "account_export", 6)
+        app.state.limiter.enforce(request, "account_export", 6)
         try:
             return auth().export_account(authorization[7:])
         except AuthError:
@@ -274,7 +281,7 @@ def create_app(
         authorization: str = Header(),
         owner: str = Depends(current_owner),
     ):
-        limiter.enforce(request, "account_delete", 3)
+        app.state.limiter.enforce(request, "account_delete", 3)
         try:
             return {"deleted": auth().delete_account(
                 authorization[7:], body.current_password
@@ -320,13 +327,13 @@ def create_app(
 
     @app.post("/v1/auth/password-reset/request")
     async def reset_request(input: ResetRequest, request: Request):
-        limiter.enforce(request, "password_reset", 5)
+        app.state.limiter.enforce(request, "password_reset", 5)
         auth().request_password_reset(input.email, delivery=reset_delivery)
         return {"accepted": True}
 
     @app.post("/v1/auth/password-reset/confirm")
     async def reset_confirm(input: ResetConfirm, request: Request):
-        limiter.enforce(request, "password_reset_confirm", 10)
+        app.state.limiter.enforce(request, "password_reset_confirm", 10)
         try:
             auth().confirm_password_reset(input.token, input.new_password)
             return {"updated": True}
