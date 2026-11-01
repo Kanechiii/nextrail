@@ -71,6 +71,7 @@ def _review_timestamp(value, now):
     moment = moment.astimezone(timezone.utc)
     if moment > now or now - moment > MAX_REVIEW_AGE:
         raise AcceptanceError("Approval review is in the future or stale")
+    return moment
 
 
 def _check_evidence(directory, name, expected_sha):
@@ -126,6 +127,8 @@ def evaluate_acceptance(manifest_path, *, evidence_dir=None, now=None):
 
     pending = []
     seen_files = set()
+    reviewers = {}
+    reviewed_dates = {}
     for gate in GATES:
         record = manifest["gates"][gate]
         if record == {"status": "pending"}:
@@ -142,17 +145,33 @@ def evaluate_acceptance(manifest_path, *, evidence_dir=None, now=None):
         if (not isinstance(reviewer, str) or len(reviewer) > 80
                 or not _REVIEWER_ID.fullmatch(reviewer)):
             raise AcceptanceError("Invalid pseudonymous reviewer identifier")
-        _review_timestamp(record["reviewed_at"], moment)
+        reviewed_dates[gate] = _review_timestamp(record["reviewed_at"], moment)
+        reviewers[gate] = reviewer
         name = record["evidence_file"]
         if isinstance(name, str) and name in seen_files:
             raise AcceptanceError("Each gate requires a distinct evidence file")
         _check_evidence(evidence_dir, name, record["evidence_sha256"])
         seen_files.add(name)
 
+    # An operator assertion is not an authenticated signature. Nevertheless,
+    # refuse a recorded final sign-off if any prerequisite is pending or if
+    # the same named reviewer signed both the final release and a gate it
+    # purports to independently approve. Ordering is checked in UTC.
+    final_gate = "manual_release_approval"
+    if final_gate in reviewers:
+        prerequisites = [gate for gate in GATES if gate != final_gate]
+        if any(gate not in reviewers for gate in prerequisites):
+            raise AcceptanceError("Final release review requires all prior approvals")
+        if reviewers[final_gate] in {reviewers[gate] for gate in prerequisites}:
+            raise AcceptanceError("Final release reviewer must be distinct from gate reviewers")
+        if reviewed_dates[final_gate] <= max(reviewed_dates[gate] for gate in prerequisites):
+            raise AcceptanceError("Final release review must follow all gate reviews")
+
     return {
         "status": "blocked" if pending else "evidence_complete",
         "total_gates": len(GATES),
         "approved_records": len(GATES) - len(pending),
         "pending_gates": pending,
+        "manual_signoff_separated": final_gate in reviewers,
         "production_approval": False,
     }
