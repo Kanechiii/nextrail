@@ -70,7 +70,7 @@ export default function CourseDetails({course,saved,onClose,onSave}:Props){
     }
   },[])
   const tone=providerTone(course)
-  return <dialog ref={dialog} className={'course-dialog provider-'+tone} aria-labelledby="course-dialog-title" aria-describedby="course-dialog-summary" onClose={onClose}>
+  return <dialog ref={dialog} className={'course-dialog provider-'+tone} aria-labelledby="course-dialog-title" aria-describedby="course-dialog-summary" onCancel={event=>{event.preventDefault();onClose()}}>
     <div className="course-dialog-grid">
       <div className="course-dialog-visual">
         <div className="course-dialog-kicker"><span>LEARNING RESOURCE</span><span>DETAIL / 01</span></div>

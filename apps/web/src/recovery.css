@@ -1,0 +1,39 @@
+/* Error recovery, focus visibility, narrow viewports, and virtual-keyboard safety. */
+.workspace-recovery{max-width:700px;margin:clamp(24px,6vw,80px) auto;padding:clamp(22px,4vw,36px);background:#26392c;color:#ecf4e7;border:1px solid #7b997e;border-radius:16px}
+.workspace-recovery h2{font-size:clamp(1.2rem,2vw,1.7rem);line-height:1.35;margin:13px 0}
+.workspace-recovery p{color:#cadccb;line-height:1.7;font-size:1rem}
+.workspace-recovery-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.workspace-recovery-actions button,.save-reconciliation button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border:1px solid #a1bca1;border-radius:9px;background:#35543e;color:#fff;cursor:pointer}
+.workspace-recovery-actions button:focus-visible,.save-reconciliation button:focus-visible{outline:3px solid #e6dda3;outline-offset:3px}
+.layout[data-theme="light"] .workspace-recovery{background:#f6faf5;color:#294431;border-color:#bfd4c1}
+.layout[data-theme="light"] .workspace-recovery p{color:#4e6b56}
+.layout[data-theme="light"] .workspace-recovery-actions button{background:#497b54}
+.field-error,.account-preferences-fields label .field-error{display:block;margin:5px 0 0;color:#f4beb0;font-size:0.85rem;line-height:1.5;font-weight:550}
+.field-error[role="alert"]{max-width:100%}
+.layout[data-theme="light"] .field-error{color:#a64d37}
+input[aria-invalid="true"]{outline:2px solid #ddac9b;outline-offset:2px}
+.save-reconciliation{padding:16px 18px;margin:14px 0;border:1px solid #bd996e;border-radius:12px;background:#352f23;color:#f5e5d1;max-width:100%}
+.save-reconciliation strong{font-size:0.95rem}
+.save-reconciliation p{font-size:0.85rem;line-height:1.6}
+.save-reconciliation button{margin-top:8px}
+.layout[data-theme="light"] .save-reconciliation{background:#fff9f0;color:#694c2e;border-color:#d6b999}
+.layout[data-theme="light"] .save-reconciliation button{background:#6a7552}
+.account-preferences-form input:focus,.dialog input:focus{scroll-margin-block-start:16px;scroll-margin-block-end:max(48px,30vh)}
+.account-preferences-fields input,.dialog input{font-size:max(1rem,16px)}
+.account-preferences-form,.dialog{scroll-padding-bottom:30vh}
+.feedback-toast-region{top:max(76px,calc(60px + env(safe-area-inset-top,0px)));right:max(14px,env(safe-area-inset-right,0px))}
+.course-dialog{max-height:calc(100dvh - 2rem - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+@media (max-width:760px){
+ .account-preferences-fields{grid-template-columns:minmax(0,1fr)}
+ .account-preferences-form{padding-bottom:max(20px,env(safe-area-inset-bottom,0px))}
+ .save-reconciliation{padding:15px}
+ .feedback-toast-region{bottom:auto;max-height:calc(100dvh - 90px);overflow-y:auto}
+ .workspace-recovery{margin:15px}
+}
+@media (max-width:380px){
+ .workspace-recovery-actions{flex-direction:column}
+ .workspace-recovery-actions button{width:100%;justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){
+ .workspace-recovery *,.save-reconciliation *{animation:none!important;scroll-behavior:auto!important;transition:none!important}
+}
