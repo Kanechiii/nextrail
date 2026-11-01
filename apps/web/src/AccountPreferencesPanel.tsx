@@ -6,6 +6,7 @@ type Props={
   value:LearningPreferences
   skills:Skill[]
   saving:boolean
+  saved?:boolean
   onSave:(changes:LearningPreferencesUpdate)=>Promise<void>
   onApply:()=>void
 }
@@ -20,7 +21,7 @@ export function editablePreferences(value:LearningPreferences):LearningPreferenc
   }
 }
 
-export default function AccountPreferencesPanel({value,skills,saving,onSave,onApply}:Props){
+export default function AccountPreferencesPanel({value,skills,saving,saved=false,onSave,onApply}:Props){
   const [draft,setDraft]=useState<LearningPreferencesUpdate>(()=>editablePreferences(value))
   const [editOpen,setEditOpen]=useState(!value.onboarding_completed)
   const [problem,setProblem]=useState('')
@@ -109,7 +110,7 @@ export default function AccountPreferencesPanel({value,skills,saving,onSave,onAp
           <button type="button" className="account-preferences-reset" disabled={!changed||saving}
             onClick={()=>{setDraft(editablePreferences(value));setProblem('')}}>Discard changes</button>
           <button type="submit" className="account-preferences-save" disabled={!changed||saving||!Number.isInteger(draft.weekly_hours)||draft.weekly_hours<1||draft.weekly_hours>80}>
-            {saving?<LoaderCircle size={16} className="feedback-busy-icon" aria-hidden="true"/>:<Save size={16}/>}{saving?'Saving…':'Save preferences'}</button>
+            {saving?<LoaderCircle size={16} className="feedback-busy-icon" aria-hidden="true"/>:saved&&!changed?<CheckCircle2 size={16} aria-hidden="true"/>:<Save size={16}/>}{saving?'Saving…':saved&&!changed?'Saved':'Save preferences'}</button>
         </div>
       </div>
       {problem&&<p className="account-preferences-error" role="alert">{problem}</p>}
