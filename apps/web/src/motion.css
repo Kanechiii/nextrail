@@ -1,0 +1,20 @@
+/* Motion complements the soft learning palette without hiding content. */
+.course-dialog{animation:none}
+.completion-panel{margin:18px 0 25px;padding:17px 19px 19px;border:1px solid #526b54;border-radius:13px;background:#21342a}
+.completion-panel-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:13px;font-size:12px;color:#abc2ae}
+.completion-panel-head strong{font-size:17px;font-variant-numeric:tabular-nums;font-weight:680;color:#d2eeb6}
+.completion-meter{height:10px;overflow:hidden;border-radius:99px;background:#405747;border:1px solid #59715c}
+.completion-meter-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8fb68f,#d0e8b2);transform-origin:left center;will-change:transform}
+.progress-row button[aria-pressed="true"]{background:#42684a;color:#eaf8dd;border-color:#81a786}
+.progress-row button:focus-visible,.course-dialog-close:focus-visible,.theme-switch:focus-visible,.card-detail-trigger:focus-visible,.rail nav button:focus-visible{outline:3px solid #e5dba7;outline-offset:3px}
+.layout[data-theme="light"] .completion-panel{background:#e8f1e6;border-color:#c2d7c3}
+.layout[data-theme="light"] .completion-panel-head{color:#50745b}
+.layout[data-theme="light"] .completion-panel-head strong{color:#376448}
+.layout[data-theme="light"] .completion-meter{background:#d1e1d0;border-color:#b9d0b9}
+.layout[data-theme="light"] .completion-meter-fill{background:linear-gradient(90deg,#6a9875,#417958)}
+.layout[data-theme="light"] .progress-row button[aria-pressed="true"]{background:#d0e5d0;color:#2a6037;border-color:#9abc9e}
+.layout[data-theme="light"] .progress-row button:focus-visible,.layout[data-theme="light"] .course-dialog-close:focus-visible,.layout[data-theme="light"] .theme-switch:focus-visible,.layout[data-theme="light"] .card-detail-trigger:focus-visible,.layout[data-theme="light"] .rail nav button:focus-visible{outline-color:#7a9a7a}
+@media(prefers-reduced-motion:reduce){
+  .completion-meter-fill{will-change:auto}
+  .course-dialog{animation:none!important}
+}
