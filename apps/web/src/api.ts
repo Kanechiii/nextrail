@@ -2,5 +2,7 @@ export type Course={id:string;title:string;url?:string;provider_id:string;provid
 export type Skill={id:string;name:string;prerequisites:string[]}
 export type Plan={career_goal:string;target_skill_ids:string[];known_skill_ids:string[];weekly_hours:number;zero_budget:boolean}
 export type Pathway={schema_version:string;career_goal:string;weekly_hours:number;generation_mode:string;milestones:{order:number;skill_id:string;resource_ids:string[];rationale:string}[]}
+export type LearningPreferences={display_name:string;career_goal:string;weekly_hours:number;target_skill_ids:string[];known_skill_ids:string[];onboarding_completed:boolean;updated_at:string|null}
+export type LearningPreferencesUpdate=Pick<LearningPreferences,'display_name'|'career_goal'|'weekly_hours'|'target_skill_ids'|'known_skill_ids'>
 const base=(import.meta.env.VITE_API_BASE_URL||'/api').replace(/\/$/,'')
 export async function call<T>(path:string,method='GET',body?:unknown,token?:string):Promise<T>{const headers:Record<string,string>={'Accept':'application/json'};if(body!==undefined)headers['Content-Type']='application/json';if(token)headers.Authorization='Bearer '+token;let res:Response;try{res=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'})}catch{throw new Error('API unavailable. Start the backend or check your connection.')}if(!res.ok)throw new Error(res.status===401?'Session expired or invalid.':res.status===422?'Please check your inputs.':'Request failed ('+res.status+').');return res.json() as Promise<T>}
