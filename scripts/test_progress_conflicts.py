@@ -46,8 +46,8 @@ class ProgressConcurrencyTests(unittest.TestCase):
     def test_get_returns_revision_and_http_etag(self):
         response=self.get()
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(response.json()["revision"],"0")
-        self.assertEqual(response.headers["etag"],'"0"')
+        self.assertRegex(response.json()["revision"],r"^[0-9a-f]{64}$")
+        self.assertEqual(response.headers["etag"],'"'+response.json()["revision"]+'"')
         self.assertEqual(response.headers["cache-control"],"no-store")
 
     def test_conditional_write_rejects_stale_tab_and_preserves_audit(self):
@@ -88,7 +88,7 @@ class ProgressConcurrencyTests(unittest.TestCase):
 
     def test_missing_or_other_account_pathway_is_not_leaked(self):
         other=signup(self.client,"secondary")
-        result=self.write("0",headers=other)
+        result=self.write(self.get().json()["revision"],headers=other)
         self.assertEqual(result.status_code,404)
         self.assertEqual(self.client.get(self.url,headers=other).status_code,404)
 
