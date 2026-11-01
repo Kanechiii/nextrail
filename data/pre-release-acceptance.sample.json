@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "gates": {
+    "authorized_provider_integration": {
+      "status": "pending"
+    },
+    "reviewed_catalog_publication": {
+      "status": "pending"
+    },
+    "production_account_recovery": {
+      "status": "pending"
+    },
+    "transport_origin_and_abuse_controls": {
+      "status": "pending"
+    },
+    "privacy_retention_and_erasure": {
+      "status": "pending"
+    },
+    "database_backup_and_restore": {
+      "status": "pending"
+    },
+    "reliability_load_and_observability": {
+      "status": "pending"
+    },
+    "security_and_regression_validation": {
+      "status": "pending"
+    },
+    "rollback_and_incident_response": {
+      "status": "pending"
+    },
+    "manual_release_approval": {
+      "status": "pending"
+    }
+  }
+}
