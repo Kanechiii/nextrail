@@ -1,7 +1,9 @@
 import {useEffect,useRef} from 'react'
 import {animate,createScope,stagger} from 'animejs'
-import {ArrowUpRight,Bookmark,BookOpen,Check,ShieldCheck,X} from 'lucide-react'
+import {Bookmark,BookOpen,Check,ShieldCheck,X} from 'lucide-react'
 import type {Course} from './api'
+import ProviderEvidence from './ProviderEvidence'
+import {listingReviewState} from './sourcePresentation'
 
 export type ProviderTone='microsoft'|'github'|'coursera'|'aws'|'claude'|'freecodecamp'|'linkedin'|'neutral'
 
@@ -88,11 +90,11 @@ export default function CourseDetails({course,saved,onClose,onSave}:Props){
           <div><small>Certificate</small><strong>{costLabel(course.certificate_cost,'certificate')}</strong></div>
           <div><small>Source review</small><strong>{course.synthetic?'Not verified — demonstration':course.evidence_status.replaceAll('_',' ')}</strong></div>
         </div>
+        <ProviderEvidence course={course} variant="detail"/>
         <div className="course-dialog-foot">
-          {course.synthetic?<span className="source-note"><ShieldCheck size={16}/> No fabricated enrollment link</span>:<>
-            {course.url?<a className="course-visit" href={course.url} target="_blank" rel="noopener noreferrer">Visit course source <ArrowUpRight size={17}/></a>:<span className="source-note">No verified enrollment link available</span>}
-            <button className="course-save" disabled={saved} onClick={()=>{onClose();onSave(course.id)}}>{saved?<Check size={16}/>:<Bookmark size={16}/>} {saved?'Saved':'Save course'}</button>
-          </>}
+          {course.synthetic?<span className="source-note"><ShieldCheck size={16}/> No fabricated enrollment link</span>:listingReviewState(course)==='reviewed'?
+            <button className="course-save" disabled={saved} onClick={()=>{onClose();onSave(course.id)}}>{saved?<Check size={16}/>:<Bookmark size={16}/>} {saved?'Saved':'Save course'}</button>:
+            <span className="source-note">Unreviewed listings cannot be bookmarked here</span>}
         </div>
       </div>
     </div>

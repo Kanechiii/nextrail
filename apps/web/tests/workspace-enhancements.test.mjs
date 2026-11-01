@@ -27,9 +27,9 @@ test('course details are accessible, closable and keep source claims separate',(
 test('synthetic items cannot receive source or bookmark calls via details',()=>{
   assert.match(details,/course\.synthetic\?<span className="source-note"/)
   assert.match(details,/No fabricated enrollment link/)
-  assert.match(details,/course\.url\?<a/)
+  assert.match(details,/<ProviderEvidence course=\{course\} variant="detail"\/>/)
   assert.match(details,/onClick=\{\(\)=>\{onClose\(\);onSave\(course\.id\)\}\}/)
-  assert.match(app,/\!c\.synthetic&&/)
+  assert.match(app,/\!c\.synthetic&&listingReviewState\(c\)==='reviewed'&&/)
 })
 
 test('provider accents are restrained and never based on untrusted CSS values',()=>{

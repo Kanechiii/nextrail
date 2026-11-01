@@ -1,6 +1,7 @@
 import {ArrowUpRight,Layers3,Scale,X} from 'lucide-react'
 import type {Course} from './api'
 import {costLabel,providerTone} from './CourseDetails'
+import {reviewedCourseUrl,sourceReviewText} from './sourcePresentation'
 
 type Props={
   items:Course[]
@@ -39,9 +40,9 @@ export default function CourseComparison({items,onRemove,onClear,onDetails}:Prop
           <tr><th scope="row">Access cost</th>{items.map(course=><td key={course.id}>{costLabel(course.access_cost,'access')}</td>)}</tr>
           <tr><th scope="row">Certificate</th>{items.map(course=><td key={course.id}>{costLabel(course.certificate_cost,'certificate')}</td>)}</tr>
           <tr><th scope="row">Skill coverage</th>{items.map(course=><td key={course.id}>{course.skills.length?<ul className="comparison-skills">{course.skills.map(s=><li key={s}>{s}</li>)}</ul>:'Not specified'}</td>)}</tr>
-          <tr><th scope="row">Evidence</th>{items.map(course=><td key={course.id}>{course.synthetic?'Illustrative only':course.evidence_status.replaceAll('_',' ')}</td>)}</tr>
+          <tr><th scope="row">Evidence</th>{items.map(course=><td key={course.id}>{sourceReviewText(course)}</td>)}</tr>
           <tr><th scope="row">Source</th>{items.map(course=><td key={course.id}>
-            {!course.synthetic&&course.url?.startsWith('https://')?<a className="comparison-official" href={course.url} rel="noopener noreferrer" target="_blank">Provider source <ArrowUpRight size={15}/></a>:<span>Not available</span>}
+            {reviewedCourseUrl(course)?<a className="comparison-official" href={reviewedCourseUrl(course)??undefined} rel="noopener noreferrer" target="_blank">Provider source <ArrowUpRight size={15}/></a>:<span>Not available</span>}
           </td>)}</tr>
         </tbody>
       </table>
