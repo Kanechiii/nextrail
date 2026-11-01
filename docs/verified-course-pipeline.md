@@ -53,7 +53,7 @@ official review URL, timestamp and reviewer identifier for each trusted claim.
 Use a new, nonexistent output filename. From the repository root:
 
 ```powershell
-python scripts/publish_course_catalog.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --manifest data/course-publication.manifest.sample.json --listing-reviews data/course-publication.reviews.sample.json --claims data/evidence.sample.json --output data/course-publication-preview.json
+python scripts/publish_course_catalog.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json --manifest data/course-publication.manifest.sample.json --listing-reviews data/course-publication.reviews.sample.json --claims data/evidence.sample.json --output data/course-publication-preview.json
 ```
 
 Expected sample result: **0 published courses**. The example.org/example.net
@@ -130,10 +130,21 @@ Run this **read-only**, offline sample check (expected zero real grants):
 python scripts/verify_source_authorizations.py --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json
 ```
 
-This preflight deliberately does **not** change the existing course publication
-API or authorize any remote collection. Until a separate source-integration PR
-wires this contract into the real-source publication boundary, it is an
-additional operator review check only. Even a passing authorization entry is
-an operator assertion, not signed proof of provider permission: actual provider
-terms, allowed use, local legal requirements and necessary consent require
-human verification. Do not populate a real approval based on this sample.
+## Publication-side permission gate (Phase 25 follow-up)
+
+The **offline publisher CLI** now requires `--authorizations` on every invocation,
+including synthetic sample dry runs. Before loading source batches it verifies the
+review document against the complete registry and requires current, exact-scope
+permission for every approved non-synthetic registry source. Unknown, revoked,
+expired, pending or mismatched authorizations fail the operation without writing
+an output file. Every manifest source must be among those approved. The separate
+authorization JSON reader refuses symlinks, duplicate properties and oversized
+documents. The sample still has zero approved real sources and publishes zero
+courses. Existing low-level normalization and catalog compiler functions remain
+available for isolated unit tests; external publication must go through the
+gated CLI.
+
+This remains an **offline operator assertion**, not signed proof of actual
+provider permission. It cannot authorize remote scraping or fetching. Actual
+provider terms, data rights, use restrictions and necessary consent still
+require independent human review, and no real provider has been activated.
