@@ -116,9 +116,7 @@ class SharedLimiterConfigurationTests(unittest.TestCase):
     def test_invalid_or_missing_secret_refused(self):
         with tempfile.TemporaryDirectory() as folder:
             path = str(Path(folder) / "db.sqlite")
-            for value in ("a", "a" * 64, "A" * 64, "00" * 32 + " "):
-                if value == "a" * 64:
-                    continue
+            for value in ("a", "A" * 64, "00" * 32 + " "):
                 with self.subTest(secret=value), self.assertRaises(ConfigurationError):
                     shared_rate_limit_key_from_env({
                         "NEXTRAIL_DB_PATH": path, "NEXTRAIL_RATE_LIMIT_HMAC_KEY": value,
