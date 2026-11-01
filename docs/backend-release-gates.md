@@ -64,6 +64,8 @@ provenance must agree exactly:
   versions, unapproved providers, mismatched resource/evidence links,
   future timestamps and expired reviews reject the entire snapshot.
 
+Only the validated reviewed release may grant free-course eligibility for a `zero_budget=true` pathway. The runtime derives a frozen set of free-access resource IDs from this validated package and passes it through both the prerequisite planner and the quality gate. Paid, conditional, unknown-price, synthetic, unapproved and stale courses cannot be advertised as free recommendations. Without explicit reviewed activation, zero-budget course suggestions remain empty rather than trusting a standalone catalog `free` flag. Course access and certificate fees are independent; a free-access recommendation never asserts a free certificate.
+
 The pinned file is read once at process creation. Its validated content is
 held in memory. No automatic remote data refresh or filesystem hot-swap is
 performed; a later file edit does not silently alter the running release.

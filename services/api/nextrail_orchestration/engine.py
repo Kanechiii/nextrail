@@ -12,7 +12,8 @@ from .agents import (
 
 
 def orchestrate(catalog, request: PlanningRequest, *, env: Mapping[str, str] | None = None,
-                priority_provider=None) -> OrchestrationResult:
+                priority_provider=None, verified_free_resource_ids: frozenset[str] = frozenset()
+                ) -> OrchestrationResult:
     """Execute four fixed stages with fail-closed publication.
 
     A fully deterministic result is always available without provider configuration.
@@ -20,6 +21,9 @@ def orchestrate(catalog, request: PlanningRequest, *, env: Mapping[str, str] | N
     """
     if not isinstance(request, PlanningRequest):
         raise OrchestrationError("PlanningRequest required")
+    if (not isinstance(verified_free_resource_ids, frozenset)
+            or any(not isinstance(rid, str) for rid in verified_free_resource_ids)):
+        raise OrchestrationError("Invalid reviewed free-access policy")
     try:
         stable_catalog = deepcopy(catalog)
         stages = []
@@ -41,9 +45,15 @@ def orchestrate(catalog, request: PlanningRequest, *, env: Mapping[str, str] | N
                 priority_provider = StrandsOllamaPriorityProvider(model=local.model)
             else:
                 raise OrchestrationError("Unsupported orchestration runtime")
-        pathway = PlanningAgent().run(stable_catalog, request, priority_provider)
+        pathway = PlanningAgent().run(
+            stable_catalog, request, priority_provider,
+            verified_free_resource_ids=verified_free_resource_ids,
+        )
         stages.append(StageRecord("pathway_planning", "passed"))
-        quality = QualityAgent().run(stable_catalog, request, missing, pathway, resources)
+        quality = QualityAgent().run(
+            stable_catalog, request, missing, pathway, resources,
+            verified_free_resource_ids=verified_free_resource_ids,
+        )
         stages.append(StageRecord("quality_gate", "passed"))
         return OrchestrationResult(pathway=quality, stages=tuple(stages))
     except (OrchestrationError, ValueError, TypeError, KeyError, RecursionError) as exc:

@@ -172,7 +172,13 @@ def create_app(
                 known_skill_ids=tuple(input.known_skill_ids),
                 weekly_hours=input.weekly_hours, zero_budget=input.zero_budget
             )
-            return orchestrate(active_catalog(), request, env={}).pathway
+            return orchestrate(
+                active_catalog(), request, env={},
+                verified_free_resource_ids=(
+                    release.verified_free_resource_ids if release is not None
+                    else frozenset()
+                ),
+            ).pathway
         except (ValueError, KeyError, TypeError):
             raise HTTPException(422, "Invalid pathway request")
 

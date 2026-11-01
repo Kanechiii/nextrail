@@ -44,10 +44,13 @@ No model, Strands orchestration, SQLite persistence, or web scraping is
 needed to generate the deterministic skill milestones.
 
 The sample catalog is entirely synthetic. Synthetic and unverified resources
-are never suggested. As the current evidence contract does not contain
-claim-level proof of free access, the zero-budget mode deliberately leaves
-resource_ids empty until claim-level verification is implemented.
-This is a limitation, not proof that courses are unavailable.
+are never suggested. Zero-budget plans include a free-access course only if
+its resource ID comes from an explicitly activated, SHA-256-pinned reviewed
+release with approved and current listing, availability and free-access
+claims. Without that trusted release policy, zero-budget resource IDs stay
+empty—even if an arbitrary catalog row says `access_cost=free`.
+An eligible free course does **not** imply a free certificate; the separate
+certificate-cost claim may remain unknown or paid.
 
 The AI-assisted flag is set only when an eligible model suggestion was
 accepted. Failure to connect, malformed output, invalid choices or timeout
