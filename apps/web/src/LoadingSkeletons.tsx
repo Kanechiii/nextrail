@@ -61,3 +61,12 @@ export function ProgressSkeleton(){
     </div>)}
   </div>
 }
+
+export function SkillChoicesSkeleton(){
+  return <div className="skeleton-skill-choices" aria-hidden="true">
+    {Array.from({length:4},(_,i)=><div className="skeleton-skill-choice" key={i}>
+      <Bar width="16px" height="16px"/>
+      <Bar width={i%2?'51%':'68%'} height="12px"/>
+    </div>)}
+  </div>
+}
