@@ -16,7 +16,7 @@
   --feedback-toast-fg:#2c4836;
 }
 .feedback-sheen{position:relative;display:block;overflow:hidden;background:var(--feedback-skeleton)}
-.feedback-sheen::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 23%,var(--feedback-sheen) 50%,transparent 77%);transform:translateX(-110%);opacity:.65;animation:nextrail-shimmer 1.75s cubic-bezier(.35,0,.65,1) infinite;will-change:transform}
+.feedback-sheen::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 23%,var(--feedback-sheen) 50%,transparent 77%);transform:translateX(-110%);opacity:.65;animation:nextrail-shimmer 1.75s cubic-bezier(.35,0,.65,1) infinite}
 @keyframes nextrail-shimmer{to{transform:translateX(110%)}}
 .skeleton-bar{max-width:100%;border-radius:6px;flex:none}
 .skeleton-card-grid{margin-top:0}
@@ -86,3 +86,23 @@
 .skeleton-skill-choice .skeleton-bar{flex:none}
 .journey-complete-action[aria-busy="true"]{display:inline-flex;align-items:center;gap:8px}
 @media(max-width:650px){.skeleton-skill-choices{grid-template-columns:1fr}}
+
+/* Avoid unnecessary animated layers on low-power devices. */
+.feedback-sheen{contain:paint}
+.feedback-loading-minimum{min-height:38px;display:block}
+.catalog-results[aria-busy="true"] .catalog-loading-status{margin-bottom:14px}
+.feedback-saved-label{font-size:11px;font-weight:700;line-height:1;color:inherit}
+.feedback-button-saved{display:inline-flex;align-items:center;gap:7px}
+.reconnection-banner{z-index:9;position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:13px;padding:13px clamp(24px,4vw,62px);background:#2e392b;border-bottom:1px solid #61755e;color:#d8e6d5;font-size:12px;line-height:1.6}
+.reconnection-banner-content{display:flex;gap:11px;align-items:center;min-width:0;flex:1}
+.reconnection-banner-content strong{color:#eff4e7}
+.reconnection-status-dot{height:9px;width:9px;border-radius:50%;background:#d6ad80;box-shadow:0 0 0 4px #d6ad8025;flex:none}
+.reconnection-banner button{display:flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid #a5b99b;border-radius:8px;color:inherit;background:#3b4b3b;font-weight:600;font-size:11px}
+.reconnection-banner button:hover:not(:disabled){background:#536554}
+.reconnection-banner button:focus-visible{outline:3px solid #dce8bd;outline-offset:2px}
+.layout[data-theme="light"] .reconnection-banner{background:#f6f3e8;border-color:#e0d5b9;color:#696548}
+.layout[data-theme="light"] .reconnection-banner-content strong{color:#4e513c}
+.layout[data-theme="light"] .reconnection-banner button{background:#fffdf6;border-color:#c4bca5}
+.layout[data-theme="light"] .reconnection-banner button:hover:not(:disabled){background:#ebe9dd}
+@media(max-width:760px){.reconnection-banner{gap:12px;align-items:flex-start}.reconnection-banner button{margin-left:19px}}
+@media(update:slow),(prefers-reduced-data:reduce){.feedback-sheen::after{animation:none!important;display:none!important}}
