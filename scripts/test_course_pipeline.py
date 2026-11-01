@@ -310,6 +310,7 @@ class OfflinePublisherCLITests(unittest.TestCase):
             sys.executable, str(ROOT / "scripts/publish_course_catalog.py"),
             "--base-catalog", str(ROOT / "data/catalog.sample.json"),
             "--sources", str(ROOT / "data/sources.sample.json"),
+            "--authorizations", str(ROOT / "data/provider-authorizations.sample.json"),
             "--manifest", str(manifest or ROOT / "data/course-publication.manifest.sample.json"),
             "--listing-reviews", str(ROOT / "data/course-publication.reviews.sample.json"),
             "--claims", str(ROOT / "data/evidence.sample.json"),
