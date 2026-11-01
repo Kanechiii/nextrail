@@ -1,7 +1,9 @@
 """Phase 28 offline runtime readiness and guest latency regression tests."""
 from contextlib import closing
 import json
+import sqlite3
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -36,9 +38,16 @@ class DatabaseLivenessTests(unittest.TestCase):
 
     def test_ready_reports_database_failure_but_health_remains_alive(self):
         app = create_app()
+
+        class UnavailableConnection:
+            def execute(self, statement):
+                raise sqlite3.ProgrammingError("connection unavailable")
+
         with TestClient(app) as client:
             self.assertEqual(client.get("/ready").status_code, 200)
-            app.state.db.close()
+            # Replace only the app-facing reference; the real lifespan-owned
+            # connection remains safely closed in its own thread on teardown.
+            app.state.db = UnavailableConnection()
             response = client.get("/ready")
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json(), {"detail": "Database unavailable"})
@@ -46,17 +55,23 @@ class DatabaseLivenessTests(unittest.TestCase):
             self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_ready_requires_supported_learning_schema(self):
-        app = create_app()
-        with TestClient(app) as client:
-            app.state.db.execute("PRAGMA user_version=5")
-            self.assertEqual(client.get("/ready").status_code, 503)
-            self.assertEqual(client.get("/health").status_code, 200)
+        with tempfile.TemporaryDirectory() as folder:
+            location = str(Path(folder) / "readiness.sqlite")
+            app = create_app(database_path=location)
+            with TestClient(app) as client:
+                with sqlite3.connect(location) as editor:
+                    editor.execute("PRAGMA user_version=5")
+                self.assertEqual(client.get("/ready").status_code, 503)
+                self.assertEqual(client.get("/health").status_code, 200)
 
     def test_ready_requires_auth_metadata(self):
-        app = create_app()
-        with TestClient(app) as client:
-            app.state.db.execute("DELETE FROM auth_meta WHERE id=1")
-            self.assertEqual(client.get("/ready").status_code, 503)
+        with tempfile.TemporaryDirectory() as folder:
+            location = str(Path(folder) / "readiness.sqlite")
+            app = create_app(database_path=location)
+            with TestClient(app) as client:
+                with sqlite3.connect(location) as editor:
+                    editor.execute("DELETE FROM auth_meta WHERE id=1")
+                self.assertEqual(client.get("/ready").status_code, 503)
 
 
 class GuestPerformanceSmokeTests(unittest.TestCase):
