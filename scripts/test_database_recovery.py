@@ -1,5 +1,8 @@
 """Fail-closed local SQLite backup, integrity and durability tests."""
+import builtins
+import errno
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -7,6 +10,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services/api"))
@@ -15,6 +19,7 @@ from nextrail_api.settings import ConfigurationError, database_path_from_env
 from nextrail_auth import AccountStore
 from nextrail_auth.preferences import AccountPreferencesStore
 from nextrail_storage import LearningStore, open_database
+from nextrail_storage import recovery
 from nextrail_storage.recovery import (
     DatabaseRecoveryError, inspect_database, snapshot_database,
 )
@@ -72,6 +77,68 @@ class DatabaseRecoveryTests(unittest.TestCase):
             )
             self.assertEqual(LearningStore(restored).get_progress(self.owner, key)["completed"], 1)
             self.assertEqual(LearningStore(restored).list_saved_courses(self.owner), ["approved-resource"])
+
+    def test_windows_publish_uses_rename_not_hard_links(self):
+        # Exercise the Windows branch on the Linux CI runner as well.
+        with patch.object(recovery, "_windows_platform", return_value=True), \
+                patch.object(recovery.os, "link", side_effect=AssertionError(
+                    "Windows snapshots must not require hard-link permissions"
+                )):
+            snapshot_database(self.source, self.backup_path())
+        self.assertTrue(self.backup_path().is_file())
+        self.assertEqual(inspect_database(self.backup_path())["storage_schema"], 1)
+        self.assertEqual(list(self.parent.glob(".nextrail-snapshot-*.tmp")), [])
+
+    def test_snapshot_fsync_uses_writable_file_handle(self):
+        opened = []
+        original_open = builtins.open
+
+        def observing_open(file, mode="r", *args, **kwargs):
+            if Path(file).name.startswith(".nextrail-snapshot-"):
+                opened.append(mode)
+            return original_open(file, mode, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=observing_open):
+            snapshot_database(self.source, self.backup_path())
+        self.assertIn("r+b", opened)
+
+    def test_windows_publish_permission_error_identifies_stage(self):
+        with patch.object(recovery, "_windows_platform", return_value=True), \
+                patch.object(recovery.os, "rename", side_effect=PermissionError(
+                    errno.EACCES, "permission denied"
+                )):
+            with self.assertRaises(DatabaseRecoveryError) as error:
+                snapshot_database(self.source, self.backup_path())
+        self.assertIn("publishing the completed snapshot", str(error.exception))
+        self.assertIn("error code", str(error.exception))
+        self.assertNotIn(str(self.parent), str(error.exception))
+        self.assertFalse(self.backup_path().exists())
+        self.assertEqual(list(self.parent.glob(".nextrail-snapshot-*.tmp")), [])
+        self.assertEqual(inspect_database(self.source)["storage_schema"], 1)
+
+    def test_windows_publish_collision_preserves_existing_destination(self):
+        destination = self.backup_path()
+
+        def simulated_collision(staged, target):
+            target.write_bytes(b"existing file created concurrently")
+            raise FileExistsError(errno.EEXIST, "destination now exists")
+
+        with patch.object(recovery, "_publish_exclusively", side_effect=simulated_collision):
+            with self.assertRaises(DatabaseRecoveryError):
+                snapshot_database(self.source, destination)
+        self.assertEqual(destination.read_bytes(), b"existing file created concurrently")
+        self.assertEqual(list(self.parent.glob(".nextrail-snapshot-*.tmp")), [])
+
+    def test_snapshot_flush_failure_is_diagnosable_and_cleans_up(self):
+        with patch.object(recovery.os, "fsync", side_effect=OSError(
+            errno.EBADF, "unsupported flush descriptor"
+        )):
+            with self.assertRaises(DatabaseRecoveryError) as error:
+                snapshot_database(self.source, self.backup_path())
+        self.assertIn("flushing snapshot data", str(error.exception))
+        self.assertIn("error code", str(error.exception))
+        self.assertFalse(self.backup_path().exists())
+        self.assertEqual(list(self.parent.glob(".nextrail-snapshot-*.tmp")), [])
 
     def test_source_stays_writable_after_snapshot(self):
         snapshot_database(self.source, self.backup_path())
