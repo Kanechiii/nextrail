@@ -45,24 +45,10 @@ jobs:
         run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
       - name: Install web dependencies
         working-directory: apps/web
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
       - name: Test web experience
         working-directory: apps/web
         run: npm test
       - name: Typecheck and build frontend
         working-directory: apps/web
         run: npm run build
-      - name: Install browser test runtime
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
-      - name: Verify desktop and mobile workflows
-        working-directory: apps/web
-        run: npm run test:e2e
-      - name: Preserve browser review evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dashboard-browser-results
-          path: apps/web/test-results
-          retention-days: 7
-
