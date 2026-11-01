@@ -50,3 +50,18 @@ def reviewed_catalog_from_env(env: Mapping[str, str] | None = None):
     if location.is_symlink() or not location.is_file() or location.suffix != ".json":
         raise ConfigurationError("Reviewed catalog must be an existing regular JSON file")
     return path, sha
+
+
+def shared_rate_limit_key_from_env(env: Mapping[str, str] | None = None) -> bytes | None:
+    """Opt in to shared request protection only with a strong operator key."""
+    import re
+
+    values = os.environ if env is None else env
+    raw = values.get("NEXTRAIL_RATE_LIMIT_HMAC_KEY")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not re.fullmatch(r"[0-9a-f]{64}", raw):
+        raise ConfigurationError("Shared rate limiting requires a 32-byte lowercase hex key")
+    if database_path_from_env(values) == ":memory:":
+        raise ConfigurationError("Shared request limits require durable SQLite storage")
+    return bytes.fromhex(raw)
