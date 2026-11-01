@@ -26,7 +26,8 @@ test('preference editor reflects server defaults, separates save from applying a
   assert.match(panel,/onSubmit=\{submit\}/)
   assert.match(panel,/onSave\(\{/)
   assert.match(app,/setPlan\(previous=>\(\{\.\.\.previous,career_goal:preferences\.career_goal/)
-  assert.match(app,/setPathway\(null\);setPlanDirty\(true\);changeView\('pathway'\)/)
+  assert.match(app,/if\(!changeView\('pathway'\)\)return/)
+  assert.match(app,/setPathway\(null\);setPlanDirty\(true\)/)
 })
 
 test('guest pathway snapshot is captured after actual preview, never silently transferred',()=>{
