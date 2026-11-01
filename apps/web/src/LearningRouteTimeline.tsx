@@ -22,9 +22,9 @@ export function nextRouteStep(pathway:Pathway,progress?:RouteProgress|null){
 export default function LearningRouteTimeline({pathway,skills,progress,onToggle}:Props){
   const id=useId()
   const next=nextRouteStep(pathway,progress)
-  const [active,setActive]=useState<string|null>(null)
+  const [active,setActive]=useState<string|null|false>(null)
   useEffect(()=>setActive(null),[pathway])
-  const selected=active&&pathway.milestones.some(m=>m.skill_id===active)?active:
+  const selected=active===false?null:active&&pathway.milestones.some(m=>m.skill_id===active)?active:
     next??pathway.milestones[0]?.skill_id??null
   const knownSkills=useMemo(()=>new Map(skills.map(s=>[s.id,s])),[skills])
   const statuses=useMemo(()=>new Map(progress?.milestones.map(m=>[m.skill_id,m.status])??[]),[progress])
@@ -56,7 +56,7 @@ export default function LearningRouteTimeline({pathway,skills,progress,onToggle}
         const prerequisites=knownSkills.get(milestone.skill_id)?.prerequisites??[]
         const detailId=id+'-step-'+index
         return <li key={milestone.skill_id} className={'journey-step '+(current?'is-active ':'')+'is-'+state}>
-          <button className="journey-step-toggle" type="button" onClick={()=>setActive(current?null:milestone.skill_id)}
+          <button className="journey-step-toggle" type="button" onClick={()=>setActive(current?false:milestone.skill_id)}
             aria-expanded={current} aria-controls={detailId}>
             <span className="journey-step-icon" aria-hidden="true">{state==='completed'?<CheckCircle2 size={19}/>:state==='in_progress'?<CircleDashed size={19}/>:<span>{index+1}</span>}</span>
             <span className="journey-step-label"><small>STEP {String(index+1).padStart(2,'0')} <span>·</span> {progress?state.replaceAll('_',' '):'planned'}</small><strong>{title}</strong></span>
