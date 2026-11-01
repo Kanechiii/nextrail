@@ -1,5 +1,5 @@
-"""ASGI entry point; database path is configuration only."""
-import os
+"""ASGI entry point; persistence is explicitly configured, never inferred."""
 from .app import create_app
+from .settings import database_path_from_env
 
-app = create_app(database_path=os.environ.get("NEXTRAIL_DB_PATH", ":memory:"))
+app = create_app(database_path=database_path_from_env())
