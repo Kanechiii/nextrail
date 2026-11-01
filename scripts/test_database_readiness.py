@@ -128,6 +128,22 @@ class DatabaseReadinessTests(unittest.TestCase):
         with self.assertRaises(DatabaseReadinessError):
             self.verify(pin=pin)
 
+    def test_reject_corrupt_active_sqlite_with_readiness_error(self):
+        self.conn.close()
+        self.active.write_text("not a database", encoding="utf-8")
+        with self.assertRaises(DatabaseReadinessError) as error:
+            self.verify()
+        self.assertIn("Active database failed SQLite integrity validation", str(error.exception))
+        self.assertNotIn(str(self.active), str(error.exception))
+
+    def test_reject_invalid_backup_sqlite_with_scoped_error(self):
+        self.backup.write_text("invalid SQLite file", encoding="utf-8")
+        pin = hashlib.sha256(self.backup.read_bytes()).hexdigest()
+        with self.assertRaises(DatabaseReadinessError) as error:
+            self.verify(pin=pin)
+        self.assertIn("Backup failed SQLite integrity validation", str(error.exception))
+        self.assertNotIn(str(self.backup), str(error.exception))
+
     def test_reject_non_wal_active_database(self):
         self.conn.close()
         with closing(sqlite3.connect(self.active)) as disk:
