@@ -7,4 +7,5 @@ import './motion.css'
 import './dashboard-insights.css'
 import './account-experience.css'
 import './provider-evidence.css'
+import './feedback.css'
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)
