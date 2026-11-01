@@ -113,3 +113,27 @@ The suite covers unapproved/synthetic sources, official-domain restrictions,
 stale/missing/conflicting claims, duplicate IDs and canonical URLs, unknown
 skills, no fabricated certificate charges, guest discovery over the reviewed
 output, and the no-network CLI with exclusive output creation.
+
+## Additional provider authorization preflight (Phase 25, Step 1)
+
+The separate offline source-authorization contract validates an operator-maintained
+review record against each approved source's exact provider ID, source URL,
+integration method and allowed HTTPS hosts. It also requires a pseudonymous
+reviewer ID, provider-hosted permission reference, explicit permission basis,
+review date and finite expiration. Authorization entries for pending or
+synthetic sources do not grant permission. An approved non-synthetic source
+without a current matching authorization entry fails the entire preflight.
+
+Run this **read-only**, offline sample check (expected zero real grants):
+
+```powershell
+python scripts/verify_source_authorizations.py --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json
+```
+
+This preflight deliberately does **not** change the existing course publication
+API or authorize any remote collection. Until a separate source-integration PR
+wires this contract into the real-source publication boundary, it is an
+additional operator review check only. Even a passing authorization entry is
+an operator assertion, not signed proof of provider permission: actual provider
+terms, allowed use, local legal requirements and necessary consent require
+human verification. Do not populate a real approval based on this sample.
