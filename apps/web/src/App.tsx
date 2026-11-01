@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
 import {ArrowRight,ArrowUpRight,BookOpen,Bookmark,Check,CheckCircle2,Compass,GitBranch,Layers,LoaderCircle,Lock,LogOut,Moon,RefreshCw,Search,ShieldCheck,Sun,X} from 'lucide-react'
-import {call,isAuthFailure,isConnectionFailure,isRequestCancelled,type ApiError,type Course,type Skill,type Plan,type Pathway,type LearningPreferences,type LearningPreferencesUpdate} from './api'
+import {call,isAuthFailure,isConnectionFailure,isRequestCancelled,ApiError,type Course,type Skill,type Plan,type Pathway,type LearningPreferences,type LearningPreferencesUpdate} from './api'
 import CourseDetails,{providerTone} from './CourseDetails'
 import {useWorkspaceMotion} from './motion'
 import LearningRouteTimeline from './LearningRouteTimeline'
