@@ -4,11 +4,17 @@ export type Plan={career_goal:string;target_skill_ids:string[];known_skill_ids:s
 export type Pathway={schema_version:string;career_goal:string;weekly_hours:number;generation_mode:string;milestones:{order:number;skill_id:string;resource_ids:string[];rationale:string}[]}
 export type LearningPreferences={display_name:string;career_goal:string;weekly_hours:number;target_skill_ids:string[];known_skill_ids:string[];onboarding_completed:boolean;updated_at:string|null}
 export type LearningPreferencesUpdate=Pick<LearningPreferences,'display_name'|'career_goal'|'weekly_hours'|'target_skill_ids'|'known_skill_ids'>
-const base=(import.meta.env.VITE_API_BASE_URL||'/api').replace(/\/$/,'')
+const base=(import.meta.env?.VITE_API_BASE_URL||'/api').replace(/\/$/,'')
 export class ApiError extends Error{
-  constructor(message:string,public readonly status:number,public readonly code:string,public readonly retryAfterSeconds:number|null=null){
+  readonly status:number
+  readonly code:string
+  readonly retryAfterSeconds:number|null
+  constructor(message:string,status:number,code:string,retryAfterSeconds:number|null=null){
     super(message)
     this.name='ApiError'
+    this.status=status
+    this.code=code
+    this.retryAfterSeconds=retryAfterSeconds
   }
 }
 export const isAuthFailure=(reason:unknown)=>reason instanceof ApiError&&reason.status===401
