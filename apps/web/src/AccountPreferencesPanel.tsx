@@ -1,5 +1,5 @@
 import {useEffect,useState,type FormEvent} from 'react'
-import {ArrowRight,CheckCircle2,Clock3,Compass,Save,SlidersHorizontal} from 'lucide-react'
+import {ArrowRight,CheckCircle2,Clock3,Compass,LoaderCircle,Save,SlidersHorizontal} from 'lucide-react'
 import type {LearningPreferences,LearningPreferencesUpdate,Skill} from './api'
 
 type Props={
@@ -109,7 +109,7 @@ export default function AccountPreferencesPanel({value,skills,saving,onSave,onAp
           <button type="button" className="account-preferences-reset" disabled={!changed||saving}
             onClick={()=>{setDraft(editablePreferences(value));setProblem('')}}>Discard changes</button>
           <button type="submit" className="account-preferences-save" disabled={!changed||saving||!Number.isInteger(draft.weekly_hours)||draft.weekly_hours<1||draft.weekly_hours>80}>
-            <Save size={16}/>{saving?'Saving…':'Save preferences'}</button>
+            {saving?<LoaderCircle size={16} className="feedback-busy-icon" aria-hidden="true"/>:<Save size={16}/>}{saving?'Saving…':'Save preferences'}</button>
         </div>
       </div>
       {problem&&<p className="account-preferences-error" role="alert">{problem}</p>}
