@@ -112,6 +112,83 @@ class LearningStore:
         return [{"id": row["id"], "pathway": json.loads(row["pathway_json"]),
                  "created_at": row["created_at"]} for row in rows]
 
+    def list_pathway_page(self, owner, *, limit=20, after_id=None):
+        """Owner-scoped, stable keyset page with self-reported completion counts."""
+        owner = owner_id(owner)
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise StorageError("Invalid pathway page limit")
+        if after_id is not None and (
+            not isinstance(after_id, str) or not 1 <= len(after_id) <= 64
+        ):
+            raise StorageError("Invalid pathway cursor")
+        args = [owner]
+        predicate = "owner_id=?"
+        if after_id is not None:
+            cursor = self.conn.execute(
+                "SELECT created_at,id FROM learning_pathways WHERE owner_id=? AND id=?",
+                (owner, after_id),
+            ).fetchone()
+            if cursor is None:
+                raise KeyError("Pathway page cursor not found")
+            predicate += " AND (created_at<? OR (created_at=? AND id<?))"
+            args.extend((cursor["created_at"], cursor["created_at"], cursor["id"]))
+        args.append(limit + 1)
+        rows = self.conn.execute(
+            f"""SELECT id,pathway_json,created_at FROM learning_pathways
+            WHERE {predicate} ORDER BY created_at DESC,id DESC LIMIT ?""",
+            args,
+        ).fetchall()
+        has_more = len(rows) > limit
+        page = rows[:limit]
+        items = []
+        for row in page:
+            snapshot = json.loads(row["pathway_json"])
+            progress = self.get_progress(owner, row["id"])
+            done = progress["completed"]
+            total = progress["total"]
+            items.append({
+                "id": row["id"],
+                "created_at": row["created_at"],
+                "career_goal": snapshot["career_goal"],
+                "generation_mode": snapshot["generation_mode"],
+                "completed": done,
+                "total": total,
+                "completion_percent": (100 * done // total) if total else 0,
+            })
+        total_pathways = self.conn.execute(
+            "SELECT count(*) FROM learning_pathways WHERE owner_id=?", (owner,)
+        ).fetchone()[0]
+        saved_courses = self.conn.execute(
+            "SELECT count(*) FROM saved_courses WHERE owner_id=?", (owner,)
+        ).fetchone()[0]
+        return {
+            "items": items,
+            "next_cursor": page[-1]["id"] if has_more and page else None,
+            "saved_pathway_count": total_pathways,
+            "saved_course_count": saved_courses,
+        }
+
+    def delete_pathway(self, owner, identifier):
+        """Delete an owned saved route and progress, with an atomic audit entry."""
+        owner = owner_id(owner)
+        with atomic(self.conn):
+            pathway = self.get_pathway(owner, identifier)
+            self.conn.execute(
+                "DELETE FROM milestone_progress WHERE owner_id=? AND pathway_id=?",
+                (owner, identifier),
+            )
+            deleted = self.conn.execute(
+                "DELETE FROM learning_pathways WHERE owner_id=? AND id=?",
+                (owner, identifier),
+            ).rowcount
+            if deleted != 1:
+                raise StorageError("Pathway deletion failed")
+            self._audit(
+                owner, "pathway", identifier, "deleted",
+                {"milestone_count": len(pathway["milestones"])},
+            )
+        return True
+
     def set_progress(self, owner, identifier, skill, status):
         owner, skill = owner_id(owner), slug(skill)
         if not isinstance(status, str) or status not in STATES:
