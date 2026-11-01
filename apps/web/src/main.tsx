@@ -1,6 +1,7 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import App from './App'
+import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
 import './styles.css'
 import './workspace-enhancements.css'
 import './motion.css'
@@ -8,4 +9,4 @@ import './dashboard-insights.css'
 import './account-experience.css'
 import './provider-evidence.css'
 import './feedback.css'
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)
+createRoot(document.getElementById('root')!).render(<React.StrictMode><WorkspaceErrorBoundary scope="application"><App/></WorkspaceErrorBoundary></React.StrictMode>)
