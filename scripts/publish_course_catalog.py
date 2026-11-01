@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services/api"))
 
-from nextrail_discovery import SourceContractError
+from nextrail_discovery import SourceContractError, load_source_authorizations
 from nextrail_discovery.pipeline import PublicationError, build_reviewed_catalog
 from validate_catalog import validate
 
@@ -25,6 +25,30 @@ def read_json(path, *, size_limit=MAX_JSON_BYTES):
         raise PublicationError("Malformed local JSON input") from exc
 
 
+def read_authorization_json(path):
+    """Bounded duplicate-safe authorization document; no symlinked inputs."""
+    source = Path(path)
+    if source.is_symlink() or not source.is_file():
+        raise PublicationError("Authorization input must be an existing regular file")
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise PublicationError("Duplicate authorization JSON property")
+            result[key] = value
+        return result
+
+    try:
+        with source.open("rb") as handle:
+            raw = handle.read(1_000_001)
+        if len(raw) > 1_000_000:
+            raise PublicationError("Authorization input exceeds size limit")
+        return json.loads(raw.decode("utf-8-sig"), object_pairs_hook=unique)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise PublicationError("Invalid authorization JSON input") from exc
+
+
 def input_from_manifest(parent, name, *, suffix):
     if not isinstance(name, str) or not name or Path(name).is_absolute():
         raise PublicationError("Manifest paths must be relative to their directory")
@@ -34,7 +58,7 @@ def input_from_manifest(parent, name, *, suffix):
     return path
 
 
-def assemble_submissions(manifest, location):
+def assemble_submissions(manifest, location, *, approved_sources=None):
     if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "batches"}:
         raise PublicationError("Invalid offline source manifest")
     if manifest["schema_version"] != "1.0.0":
@@ -49,6 +73,8 @@ def assemble_submissions(manifest, location):
         sid = item["source_id"]
         if sid in submissions:
             raise PublicationError("Duplicate source in manifest")
+        if approved_sources is not None and sid not in approved_sources:
+            raise PublicationError("Manifest source lacks current authorization approval")
         kind = item.get("format")
         if kind == "manual" and set(item) == {"source_id", "format", "path"}:
             source = input_from_manifest(location, item["path"], suffix=".json")
@@ -77,6 +103,8 @@ def main(argv=None):
     )
     parser.add_argument("--base-catalog", required=True)
     parser.add_argument("--sources", required=True)
+    parser.add_argument("--authorizations", required=True,
+                        help="Existing reviewed provider authorization JSON")
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--listing-reviews", required=True)
     parser.add_argument("--claims", required=True)
@@ -88,9 +116,15 @@ def main(argv=None):
     try:
         base = read_json(args.base_catalog)
         registry = read_json(args.sources)
+        approved_sources = frozenset(load_source_authorizations(
+            registry, read_authorization_json(args.authorizations)
+        ))
         manifest_path = Path(args.manifest)
         manifest = read_json(manifest_path)
-        submissions = assemble_submissions(manifest, manifest_path.resolve().parent)
+        submissions = assemble_submissions(
+            manifest, manifest_path.resolve().parent,
+            approved_sources=approved_sources,
+        )
         reviews = read_json(args.listing_reviews)
         if not isinstance(reviews, dict) or set(reviews) != {"schema_version", "reviews"} or reviews["schema_version"] != "1.0.0":
             raise PublicationError("Invalid listing review document")
@@ -105,6 +139,7 @@ def main(argv=None):
         with output.open("x", encoding="utf-8") as handle:
             handle.write(serialized)
         print("PASS: Offline reviewed course publication; no remote calls performed")
+        print("Current authorized real-source grants:", len(approved_sources))
         print(
             "Candidates:", result["review_report"]["candidates"],
             "Published:", result["review_report"]["published"],

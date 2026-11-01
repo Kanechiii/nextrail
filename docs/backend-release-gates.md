@@ -97,7 +97,7 @@ as a no-risk dry run:
 ```powershell
 $bundle = Join-Path $env:TEMP ("nextrail-phase19-review-{0}.json" -f [guid]::NewGuid().ToString("N"))
 
-python scripts/publish_course_catalog.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --manifest data/course-publication.manifest.sample.json --listing-reviews data/course-publication.reviews.sample.json --claims data/evidence.sample.json --output $bundle
+python scripts/publish_course_catalog.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json --manifest data/course-publication.manifest.sample.json --listing-reviews data/course-publication.reviews.sample.json --claims data/evidence.sample.json --output $bundle
 if ($LASTEXITCODE -ne 0) { throw "Offline catalog compilation failed" }
 
 $pin = (Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash.ToLowerInvariant()
