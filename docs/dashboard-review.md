@@ -50,6 +50,34 @@ npm run test:e2e
 
 If a dedicated test port is already occupied, stop the conflicting process and retry. E2E tests need Python and the FastAPI dependencies in the current terminal environment, as well as the Chromium browser runtime. No AWS, cloud inference or external course source is required. Test results are written under ignored local Playwright paths.
 
+## Windows local test reliability
+
+The browser test suite runs one browser worker at a time on local computers and allows a 90-second test deadline to accommodate slower Windows browser startup and Python password hashing. CI continues to run two workers with a 45-second deadline. The guest pathway test verifies the HTTP preview response before asserting that a route was generated, so API failures produce an explicit HTTP status rather than a misleading heading timeout.
+
+**Screenshots are optional locally**: functional checks run first, and images are captured only in CI by default. The route screenshot is taken after successful functional assertions; all review captures use the viewport and disable motion to avoid stalling account-save interactions.
+
+From `apps/web`, run:
+
+```powershell
+npm run test:e2e
+```
+
+To inspect an individual workflow with an interactive browser:
+
+```powershell
+npx playwright test e2e/dashboard.spec.ts --project=desktop --grep "guest route" --headed --trace on --workers=1
+```
+
+To capture local screenshots as well:
+
+```powershell
+$env:NEXTRAIL_E2E_SCREENSHOTS = "1"
+npm run test:e2e
+Remove-Item Env:NEXTRAIL_E2E_SCREENSHOTS
+```
+
+If a test still fails, inspect the generated `test-results/.../error-context.md` or run `npx playwright show-trace` with the saved trace ZIP. Do not delete existing project work or databases to troubleshoot a browser timeout.
+
 ## Acceptance review
 
 Review light, dark and system themes at desktop and mobile widths. Generate a guest pathway, inspect milestones, and verify prerequisites. Browse illustrative cards, hover into their landscape previews, dismiss with Escape, open details by keyboard and compare courses. Confirm cost fields remain separate and unknown facts remain unknown.
