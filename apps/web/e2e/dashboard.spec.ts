@@ -89,3 +89,13 @@ test('themes, comparison, details and URL filter history', async ({page}, info)=
   await page.evaluate(()=>window.scrollTo(0,0))
   await captureReviewScreenshot(page, info, 'dashboard-dark.png')
 })
+
+test('invalid stored theme preference falls back to system and tracks OS theme', async ({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('nextrail-theme','unsupported-theme'))
+  await page.emulateMedia({colorScheme:'dark'})
+  await page.goto('/')
+  await expect(page.getByLabel('Color theme')).toHaveValue('system')
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark')
+  await page.emulateMedia({colorScheme:'light'})
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light')
+})
