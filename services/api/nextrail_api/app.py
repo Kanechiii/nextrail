@@ -1,11 +1,14 @@
 """Guest-first JSON API with verified bearer ownership boundaries."""
+import hashlib
 import json
+import sqlite3
 from datetime import datetime, timezone
 from typing import Literal
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from nextrail_ai import PlanningRequest
@@ -14,6 +17,7 @@ from nextrail_auth.preferences import AccountPreferencesStore
 from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
+from nextrail_storage.idempotency import IdempotencyConflict, key_digest
 from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
@@ -114,6 +118,16 @@ def create_app(
             connection.close()
 
     app = FastAPI(title="Nextrail API", version="0.1.0", lifespan=lifespan)
+
+    @app.exception_handler(sqlite3.Error)
+    async def database_error(request: Request, exc: sqlite3.Error):
+        # Database diagnostics may contain private paths, table names and data.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Database temporarily unavailable",
+                     "error": {"code": "DATABASE_UNAVAILABLE", "retryable": True}},
+            headers={"Retry-After": "3", "Cache-Control": "no-store"},
+        )
 
     if public_dns_host is not None:
         @app.middleware("http")
@@ -353,9 +367,35 @@ def create_app(
             raise HTTPException(400, "Invalid or expired reset credentials")
 
     @app.post("/v1/me/pathways", status_code=201)
-    async def save_pathway(input: PlanInput, owner: str = Depends(current_owner)):
+    async def save_pathway(
+        input: PlanInput,
+        owner: str = Depends(current_owner),
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ):
+        request_digest = None
+        if idempotency_key is not None:
+            request_digest = hashlib.sha256(json.dumps(
+                input.model_dump(), sort_keys=True, separators=(",", ":"),
+            ).encode("utf-8")).hexdigest()
+            try:
+                key_digest(owner, idempotency_key, request_digest)
+                previous = learning().idempotent_pathway(owner, idempotency_key, request_digest)
+                if previous:
+                    return previous
+            except IdempotencyConflict:
+                raise HTTPException(409, "Idempotency key already used for different inputs")
+            except StorageError:
+                raise HTTPException(422, "Invalid idempotency key")
         result = planning(input)
-        return {"id": learning().save_pathway(owner, result), "pathway": result}
+        try:
+            identifier = learning().save_pathway(
+                owner, result, idempotency_key=idempotency_key, request_digest=request_digest,
+            )
+            return {"id": identifier, "pathway": learning().get_pathway(owner, identifier)}
+        except IdempotencyConflict:
+            raise HTTPException(409, "Idempotency key already used for different inputs")
+        except StorageError:
+            raise HTTPException(422, "Invalid pathway request")
 
     @app.get("/v1/me/pathways")
     async def list_pathways(owner: str = Depends(current_owner)):
