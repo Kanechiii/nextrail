@@ -64,8 +64,11 @@ Thumbs.db
 Desktop.ini
 
 # Local scratch data
+test-results/
+playwright-report/
 tmp/
 temp/
 .cache/
 logs/
 *.log
+
