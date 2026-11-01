@@ -44,7 +44,9 @@ test('guest pathway snapshot is captured after actual preview, never silently tr
 })
 
 test('sign-out clears private profile state, guest draft and selected route',()=>{
-  assert.match(app,/setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\);setProgress\(null\);setPreferences\(null\);setGuestDraft\(null\)/)
+  assert.match(app,/if\(\(preferenceDraftDirty\|\|pendingSave!==null\)\&\&!window\.confirm/)
+  assert.match(app,/setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\)/)
+  assert.match(app,/setProgress\(null\);setPreferences\(null\);setGuestDraft\(null\)/)
   assert.match(app,/if\(!token\)\{setPreferences\(null\)/)
   assert.match(app,/setToken\(null\);setAccount\(''\);setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\);setProgress\(null\);setPreferences\(null\);setError\('Session ended/)
   assert.match(app,/setPreferences\(null\);saveRequest\.current=null;setToken\(result\.access_token\)/)
