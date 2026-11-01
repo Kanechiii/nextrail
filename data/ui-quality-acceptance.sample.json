@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "scenarios": {
+    "desktop_guest_discovery": {
+      "status": "pending"
+    },
+    "mobile_guest_pathway": {
+      "status": "pending"
+    },
+    "desktop_account_progress": {
+      "status": "pending"
+    },
+    "mobile_account_personalization": {
+      "status": "pending"
+    },
+    "keyboard_and_screen_reader": {
+      "status": "pending"
+    },
+    "theme_and_reduced_motion": {
+      "status": "pending"
+    },
+    "provider_evidence_and_synthetic_safety": {
+      "status": "pending"
+    },
+    "error_offline_and_retry": {
+      "status": "pending"
+    }
+  }
+}
