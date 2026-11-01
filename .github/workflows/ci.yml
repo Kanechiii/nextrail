@@ -41,6 +41,8 @@ jobs:
         run: python scripts/evaluate_pathways.py
       - name: Validate discovery fixtures and adapters
         run: python scripts/validate_discovery.py
+      - name: Verify offline source authorization preflight
+        run: python scripts/verify_source_authorizations.py --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json
       - name: Compile backend modules
         run: python -m compileall -q services/api/nextrail_ai services/api/nextrail_discovery services/api/nextrail_orchestration services/api/nextrail_evidence services/api/nextrail_storage services/api/nextrail_auth services/api/nextrail_api
       - name: Install web dependencies

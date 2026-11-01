@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nextrail.local/provider-authorization/v1",
+  "title": "Nextrail Offline Provider Authorization Review",
+  "description": "Operator-supplied permission review assertions, not signatures or automatic network credentials.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorizations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "authorizations": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/authorization"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "url": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^https://"
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 15,
+      "maxLength": 40,
+      "format": "date-time"
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "provider_id",
+        "source_url",
+        "method",
+        "status",
+        "allowed_hosts",
+        "permission_basis",
+        "permission_url",
+        "reviewer",
+        "reviewed_at",
+        "expires_at"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/id"
+        },
+        "provider_id": {
+          "$ref": "#/$defs/id"
+        },
+        "source_url": {
+          "$ref": "#/$defs/url"
+        },
+        "method": {
+          "enum": [
+            "manual",
+            "official_api",
+            "rss"
+          ]
+        },
+        "status": {
+          "enum": [
+            "approved",
+            "revoked"
+          ]
+        },
+        "allowed_hosts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission_basis": {
+          "enum": [
+            "published_terms",
+            "direct_permission"
+          ]
+        },
+        "permission_url": {
+          "$ref": "#/$defs/url"
+        },
+        "reviewer": {
+          "$ref": "#/$defs/id"
+        },
+        "reviewed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    }
+  }
+}
