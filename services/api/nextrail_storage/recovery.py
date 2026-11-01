@@ -4,6 +4,7 @@ No automatic restore, destructive overwrite, network transfer, or secret logging
 """
 import os
 import sqlite3
+import sys
 import tempfile
 from contextlib import closing
 from pathlib import Path
@@ -77,6 +78,37 @@ def inspect_database(path: str | Path) -> dict[str, int]:
         raise DatabaseRecoveryError("Unable to open SQLite database read-only") from exc
 
 
+def _windows_platform() -> bool:
+    """Use an atomic rename on Windows instead of hard-link publication."""
+    return sys.platform == "win32"
+
+
+def _publish_exclusively(staged: Path, destination: Path) -> None:
+    """Publish in the same directory without ever replacing an existing file.
+
+    Windows os.rename refuses to replace an existing destination. POSIX rename
+    would overwrite, so POSIX uses atomic exclusive hard-link creation instead.
+    """
+    if _windows_platform():
+        os.rename(staged, destination)
+    else:
+        os.link(staged, destination)
+
+
+def _snapshot_error(stage: str, cause: BaseException) -> DatabaseRecoveryError:
+    """Expose a safe operation and error code, not private filesystem paths."""
+    code = getattr(cause, "winerror", None)
+    if code is None:
+        code = getattr(cause, "errno", None)
+    if code is None:
+        code = getattr(cause, "sqlite_errorcode", None)
+    hint = f" (error code {code})" if isinstance(code, int) else ""
+    return DatabaseRecoveryError(
+        f"Database snapshot failed while {stage}{hint}; "
+        "original database was not changed and no existing backup was replaced"
+    )
+
+
 def snapshot_database(source: str | Path, destination: str | Path) -> dict[str, int]:
     """Capture a consistent SQLite snapshot into a new file, never overwriting.
 
@@ -94,25 +126,34 @@ def snapshot_database(source: str | Path, destination: str | Path) -> dict[str, 
     # Inspect first to reject unknown or broken databases without touching them.
     inspect_database(source_path)
     temporary_path = None
+    stage = "creating a temporary snapshot"
     try:
         handle, name = tempfile.mkstemp(
             prefix=".nextrail-snapshot-", suffix=".tmp", dir=str(dest.parent)
         )
         os.close(handle)
         temporary_path = Path(name)
+
+        stage = "copying committed SQLite data"
         with closing(_read_only(source_path)) as current:
             with closing(sqlite3.connect(str(temporary_path), timeout=5.0)) as snapshot:
                 current.backup(snapshot)
+
+        stage = "validating the temporary snapshot"
         report = inspect_database(temporary_path)
-        with open(temporary_path, "rb") as temporary_file:
+
+        # Windows CRT fsync may reject a read-only descriptor. Flush using a
+        # writable descriptor after the SQLite connection has been closed.
+        stage = "flushing snapshot data"
+        with open(temporary_path, "r+b") as temporary_file:
             os.fsync(temporary_file.fileno())
-        # Atomic, exclusive publish: never replace an existing backup or target.
-        os.link(temporary_path, dest)
+
+        # Exclusive, same-directory publication; never overwrite a prior file.
+        stage = "publishing the completed snapshot"
+        _publish_exclusively(temporary_path, dest)
         return report
     except (sqlite3.DatabaseError, OSError) as exc:
-        raise DatabaseRecoveryError(
-            "Database snapshot failed; original database was not changed"
-        ) from exc
+        raise _snapshot_error(stage, exc) from exc
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
