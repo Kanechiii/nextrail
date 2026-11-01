@@ -1,5 +1,5 @@
 import {useEffect,useId,useMemo,useState} from 'react'
-import {ArrowUpRight,CheckCircle2,CircleDashed,Clock3,Compass,GitBranch} from 'lucide-react'
+import {ArrowUpRight,CheckCircle2,CircleDashed,Clock3,Compass,GitBranch,LoaderCircle} from 'lucide-react'
 import type {Pathway,Skill} from './api'
 
 type RouteProgress={completed:number;total:number;milestones:{skill_id:string;status:string}[]}
@@ -9,6 +9,7 @@ type Props={
   skills:Skill[]
   progress?:RouteProgress|null
   onToggle?:(skillId:string,nextStatus:'completed'|'not_started')=>void
+  pendingSkill?:string|null
 }
 
 type MilestoneState='completed'|'in_progress'|'not_started'
@@ -19,7 +20,7 @@ export function nextRouteStep(pathway:Pathway,progress?:RouteProgress|null){
   return pathway.milestones.find(m=>lookup.get(m.skill_id)!=='completed')?.skill_id??null
 }
 
-export default function LearningRouteTimeline({pathway,skills,progress,onToggle}:Props){
+export default function LearningRouteTimeline({pathway,skills,progress,onToggle,pendingSkill}:Props){
   const id=useId()
   const next=nextRouteStep(pathway,progress)
   const [active,setActive]=useState<string|null|false>(null)
@@ -68,10 +69,10 @@ export default function LearningRouteTimeline({pathway,skills,progress,onToggle}
               <span>{prerequisites.length? 'Prerequisites: '+prerequisites.map(s=>knownSkills.get(s)?.name??s).join(', '):'No prerequisite skills'}</span>
               <span>{milestone.resource_ids.length} referenced {milestone.resource_ids.length===1?'resource':'resources'}</span>
             </div>
-            {progress&&onToggle&&<button className="journey-complete-action" type="button"
+            {progress&&onToggle&&<button className="journey-complete-action" type="button" disabled={pendingSkill===milestone.skill_id} aria-busy={pendingSkill===milestone.skill_id}
               aria-label={(state==='completed'?'Mark incomplete: ':'Mark completed: ')+title}
               onClick={()=>onToggle(milestone.skill_id,state==='completed'?'not_started':'completed')}>
-              {state==='completed'?'Mark as not started':'Mark completed'}
+              {pendingSkill===milestone.skill_id?<><LoaderCircle size={15} className="feedback-busy-icon" aria-hidden="true"/>Updating…</>:state==='completed'?'Mark as not started':'Mark completed'}
             </button>}
           </div>}
         </li>
