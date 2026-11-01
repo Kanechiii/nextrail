@@ -11,9 +11,11 @@ import AccountPreferencesPanel from './AccountPreferencesPanel'
 import {CourseCardSkeletons,DashboardSkeleton,PreferencesSkeleton,ProgressSkeleton,RouteSkeleton,SkillChoicesSkeleton} from './LoadingSkeletons'
 import {FeedbackToasts,useFeedbackToasts} from './FeedbackToasts'
 import {useDebouncedValue,useDelayedPending,useActionSuccess} from './useFeedbackTiming'
+import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
+import {validatePathwayDraft,type FieldErrors} from './fieldValidation'
 type View='discover'|'pathway'|'learning'
 type Saved={id:string;pathway:Pathway;created_at:string}
-type Progress={completed:number;total:number;milestones:{skill_id:string;status:string}[]}
+type Progress={completed:number;total:number;revision:string;milestones:{skill_id:string;status:string}[]}
 const startingSkills:Skill[]=[{id:'html',name:'HTML Fundamentals',prerequisites:[]},{id:'css',name:'CSS Fundamentals',prerequisites:['html']},{id:'javascript',name:'JavaScript Fundamentals',prerequisites:['html']}]
 const examples:Course[]=['HTML & semantics','CSS & design systems','JavaScript essentials'].map((title,i)=>({id:'illustrative-'+i,title,provider_id:'example-only',provider_name:'Synthetic demonstration',skills:[startingSkills[i].id],access_cost:'unknown',certificate_cost:'unknown',evidence_status:'unverified',synthetic:true}))
 export default function App(){
@@ -31,10 +33,16 @@ const [token,setToken]=useState<string|null>(null),[account,setAccount]=useState
 const [saved,setSaved]=useState<Saved[]>([]),[selected,setSelected]=useState(''),[progress,setProgress]=useState<Progress|null>(null),[bookmarks,setBookmarks]=useState<string[]>([])
 const [preferences,setPreferences]=useState<LearningPreferences|null>(null),[preferencesBusy,setPreferencesBusy]=useState(false),[preferencesLoading,setPreferencesLoading]=useState(false),[preferencesProblem,setPreferencesProblem]=useState(''),[preferencesRequest,setPreferencesRequest]=useState(0)
 const [guestDraft,setGuestDraft]=useState<Plan|null>(null)
+const [planErrors,setPlanErrors]=useState<FieldErrors>({}),[planDirty,setPlanDirty]=useState(false),[preferenceDraftDirty,setPreferenceDraftDirty]=useState(false)
+const [pendingSave,setPendingSave]=useState<'pathway'|'guest'|null>(null)
 const [accountLoadError,setAccountLoadError]=useState(''),[accountRequest,setAccountRequest]=useState(0),[accountLoading,setAccountLoading]=useState(false)
 const [progressLoading,setProgressLoading]=useState(false),[progressError,setProgressError]=useState(''),[progressRequest,setProgressRequest]=useState(0)
 const saveRequest=useRef<{signature:string;token:string;key:string}|null>(null)
 const catalogAbort=useRef<AbortController|null>(null)
+const dialogAnchor=useRef<HTMLElement|null>(null)
+const dialogMarker=useRef<string|null>(null)
+const lastResumeCheck=useRef(0)
+const progressSnapshot=useRef<Progress|null>(null)
 const {toasts,push:pushToast,dismiss:dismissToast,clear:clearToasts}=useFeedbackToasts()
 const {successKey,celebrate,reset:resetSuccess}=useActionSuccess()
 const debouncedQuery=useDebouncedValue(query)
