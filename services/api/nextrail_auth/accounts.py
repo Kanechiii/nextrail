@@ -1,5 +1,6 @@
 """Local password auth with hashed bearer credentials and scoped SQLite sessions."""
 import hashlib
+import json
 import hmac
 import re
 import secrets
@@ -7,7 +8,8 @@ import sqlite3
 import time
 from uuid import uuid4
 
-from nextrail_storage.database import atomic
+from nextrail_storage.database import SCHEMA, atomic
+from nextrail_storage.store import LearningStore
 
 EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
@@ -256,4 +258,168 @@ class AccountStore:
             self.conn.execute(
                 "UPDATE auth_sessions SET revoked=1 WHERE owner_id=?", (owner,)
             )
+        return True
+
+    def active_sessions(self, token):
+        """Count a verified account's active sessions without revealing token data."""
+        owner = self.session_owner(token)
+        return self.conn.execute(
+            """SELECT count(*) FROM auth_sessions
+            WHERE owner_id=? AND revoked=0 AND expires_at>?""",
+            (owner, self._now()),
+        ).fetchone()[0]
+
+    def revoke_other_sessions(self, token):
+        """Keep the current bearer valid; revoke every other active session."""
+        owner = self.session_owner(token)
+        current_hash = _digest(token)
+        with atomic(self.conn):
+            if self.session_owner(token) != owner:
+                raise AuthError("Invalid session")
+            affected = self.conn.execute(
+                """UPDATE auth_sessions SET revoked=1
+                WHERE owner_id=? AND token_hash<>? AND revoked=0
+                AND expires_at>?""",
+                (owner, current_hash, self._now()),
+            ).rowcount
+        return affected
+
+    def change_password(self, token, current_password, new_password):
+        """Reauthenticate and revoke every session and reset link on success."""
+        owner = self.session_owner(token)
+        if (not isinstance(current_password, str) or len(current_password) > 128
+                or not password_ok(new_password)):
+            raise AuthError("Invalid password change credentials")
+        with atomic(self.conn):
+            if self.session_owner(token) != owner:
+                raise AuthError("Invalid session")
+            row = self.conn.execute(
+                "SELECT email,secret_hash FROM accounts WHERE id=?", (owner,)
+            ).fetchone()
+            if (row is None or not _verify_password(current_password, row["secret_hash"])
+                    or current_password == new_password):
+                raise AuthError("Invalid password change credentials")
+            self.conn.execute(
+                "UPDATE accounts SET secret_hash=? WHERE id=?",
+                (_password_hash(new_password), owner),
+            )
+            self.conn.execute(
+                "UPDATE auth_sessions SET revoked=1 WHERE owner_id=?", (owner,)
+            )
+            self.conn.execute(
+                "DELETE FROM password_reset_tokens WHERE owner_id=?", (owner,)
+            )
+            self.conn.execute(
+                "DELETE FROM login_attempts WHERE email=?", (row["email"],)
+            )
+        return True
+
+    def export_account(self, token):
+        """A bounded, owner-only account export without authentication secrets.
+
+        The database transaction makes the exported snapshot consistent.
+        Refuse oversized exports instead of silently omitting records.
+        """
+        owner = self.session_owner(token)
+        from .preferences import AccountPreferencesStore
+
+        preferences_store = AccountPreferencesStore(self.conn)
+        with atomic(self.conn):
+            account = self.account(owner)
+            preferences = preferences_store.get(owner)
+            pathways = self.conn.execute(
+                """SELECT id,pathway_json,created_at FROM learning_pathways
+                WHERE owner_id=? ORDER BY created_at DESC,id DESC LIMIT 501""",
+                (owner,),
+            ).fetchall()
+            saved_courses = self.conn.execute(
+                """SELECT resource_id FROM saved_courses
+                WHERE owner_id=? ORDER BY resource_id LIMIT 2001""",
+                (owner,),
+            ).fetchall()
+            audit_events = self.conn.execute(
+                """SELECT event_id,entity_type,entity_id,operation,detail_json,recorded_at
+                FROM audit_events WHERE owner_id=?
+                ORDER BY event_id LIMIT 5001""",
+                (owner,),
+            ).fetchall()
+            if (len(pathways) > 500 or len(saved_courses) > 2000
+                    or len(audit_events) > 5000):
+                raise AuthError("Account export exceeds the safe synchronous limit")
+            learning = LearningStore(self.conn)
+            payload = {
+                "schema_version": "1.0.0",
+                "account": account,
+                "preferences": preferences,
+                "pathways": [
+                    {
+                        "id": row["id"],
+                        "created_at": row["created_at"],
+                        "pathway": json.loads(row["pathway_json"]),
+                        "progress": learning.get_progress(owner, row["id"]),
+                    }
+                    for row in pathways
+                ],
+                "saved_course_ids": [row["resource_id"] for row in saved_courses],
+                "audit_events": [
+                    {
+                        "event_id": row["event_id"],
+                        "entity_type": row["entity_type"],
+                        "entity_id": row["entity_id"],
+                        "operation": row["operation"],
+                        "detail": json.loads(row["detail_json"]),
+                        "recorded_at": row["recorded_at"],
+                    }
+                    for row in audit_events
+                ],
+            }
+            if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 2_000_000:
+                raise AuthError("Account export exceeds the safe synchronous limit")
+        return payload
+
+    def delete_account(self, token, current_password):
+        """Permanently remove a reauthenticated account's local records.
+
+        The normal audit table is append-only. Privacy erasure is an explicit
+        exception: drop its deletion guard *within the same SQLite write
+        transaction*, erase only this owner's rows, then restore the exact
+        original guard before commit. Any error restores data and DDL.
+        """
+        owner = self.session_owner(token)
+        if not isinstance(current_password, str) or len(current_password) > 128:
+            raise AuthError("Invalid account deletion credentials")
+        with atomic(self.conn):
+            row = self.conn.execute(
+                "SELECT email,secret_hash FROM accounts WHERE id=?", (owner,)
+            ).fetchone()
+            if row is None or not _verify_password(current_password, row["secret_hash"]):
+                raise AuthError("Invalid account deletion credentials")
+            guard = self.conn.execute(
+                """SELECT sql FROM sqlite_master
+                WHERE type='trigger' AND name='audit_events_no_delete'"""
+            ).fetchone()
+            if (guard is None or not isinstance(guard[0], str)
+                    or " ".join(guard[0].split()).lower()
+                       != " ".join(SCHEMA[-1].split()).lower()):
+                raise AuthError("Unexpected audit deletion guard; refusing account erasure")
+            self.conn.execute("DROP TRIGGER audit_events_no_delete")
+            self.conn.execute(
+                "DELETE FROM milestone_progress WHERE owner_id=?", (owner,)
+            )
+            self.conn.execute(
+                "DELETE FROM learning_pathways WHERE owner_id=?", (owner,)
+            )
+            self.conn.execute(
+                "DELETE FROM saved_courses WHERE owner_id=?", (owner,)
+            )
+            self.conn.execute("DELETE FROM audit_events WHERE owner_id=?", (owner,))
+            self.conn.execute(
+                "DELETE FROM login_attempts WHERE email=?", (row["email"],)
+            )
+            deleted = self.conn.execute(
+                "DELETE FROM accounts WHERE id=?", (owner,)
+            ).rowcount
+            if deleted != 1:
+                raise AuthError("Account erasure failed")
+            self.conn.execute(SCHEMA[-1])
         return True
