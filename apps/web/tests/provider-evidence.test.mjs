@@ -51,7 +51,7 @@ test('access costs and certificate fees are not conflated or guessed',()=>{
 
 test('the UI uses the backend certificate_cost filter without guest authentication',()=>{
   assert.match(app,/params\.set\('certificate_cost',certificateCost\)/)
-  assert.match(app,/\[query,provider,skill,cost,certificateCost\]/)
+  assert.match(app,/\[query,provider,skill,cost,certificateCost,catalogRequest\]/)
   assert.match(app,/aria-label="Filter certificate cost"/)
   assert.match(app,/value="conditional">Conditional certificate/)
   assert.match(app,/Reviewed catalog/)
