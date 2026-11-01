@@ -46,10 +46,13 @@ class AcceptanceTests(unittest.TestCase):
             name = gate + ".txt"
             value = ("illustrative review evidence: " + gate).encode("utf-8")
             (self.evidence / name).write_bytes(value)
+            final = gate == "manual_release_approval"
             self.document["gates"][gate] = {
                 "status": "approved",
-                "reviewer": "operator-one",
-                "reviewed_at": (NOW - timedelta(days=1)).isoformat(),
+                "reviewer": "operator-two" if final else "operator-one",
+                "reviewed_at": (
+                    NOW - timedelta(hours=12) if final else NOW - timedelta(days=1)
+                ).isoformat(),
                 "evidence_file": name,
                 "evidence_sha256": hashlib.sha256(value).hexdigest(),
             }
@@ -60,6 +63,7 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(report["approved_records"], 0)
         self.assertEqual(report["pending_gates"], list(GATES))
         self.assertFalse(report["production_approval"])
+        self.assertFalse(report["manual_signoff_separated"])
 
     def test_full_evidence_is_not_production_approval(self):
         self.approve()
@@ -68,6 +72,47 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(report["approved_records"], len(GATES))
         self.assertEqual(report["pending_gates"], [])
         self.assertFalse(report["production_approval"])
+        self.assertTrue(report["manual_signoff_separated"])
+
+    def test_final_approval_with_same_reviewer_rejected(self):
+        self.approve()
+        self.document["gates"]["manual_release_approval"]["reviewer"] = "operator-one"
+        with self.assertRaises(AcceptanceError) as error:
+            self.check()
+        self.assertIn("distinct", str(error.exception))
+
+    def test_final_approval_cannot_precede_other_reviews(self):
+        self.approve()
+        self.document["gates"]["manual_release_approval"]["reviewed_at"] = (
+            NOW - timedelta(days=2)
+        ).isoformat()
+        with self.assertRaises(AcceptanceError) as error:
+            self.check()
+        self.assertIn("follow all gate reviews", str(error.exception))
+
+    def test_final_approval_cannot_share_same_review_time(self):
+        self.approve()
+        self.document["gates"]["manual_release_approval"]["reviewed_at"] = (
+            NOW - timedelta(days=1)
+        ).isoformat()
+        with self.assertRaises(AcceptanceError):
+            self.check()
+
+    def test_final_approval_fails_while_critical_gate_pending(self):
+        self.approve()
+        self.document["gates"]["database_backup_and_restore"] = {
+            "status": "pending"
+        }
+        with self.assertRaises(AcceptanceError) as error:
+            self.check()
+        self.assertIn("requires all prior approvals", str(error.exception))
+
+    def test_independent_approval_still_not_deployment_authorization(self):
+        self.approve()
+        result = self.check()
+        self.assertEqual(result["status"], "evidence_complete")
+        self.assertTrue(result["manual_signoff_separated"])
+        self.assertFalse(result["production_approval"])
 
     def test_partial_approvals_remain_blocked(self):
         self.approve()
