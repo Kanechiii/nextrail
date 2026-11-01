@@ -18,12 +18,14 @@ export class ApiError extends Error{
   }
 }
 export const isAuthFailure=(reason:unknown)=>reason instanceof ApiError&&reason.status===401
+export const isRequestCancelled=(reason:unknown)=>reason instanceof ApiError&&reason.code==='REQUEST_CANCELLED'
+export const isConnectionFailure=(reason:unknown)=>reason instanceof ApiError&&['NETWORK_UNAVAILABLE','REQUEST_TIMEOUT','SERVICE_UNAVAILABLE','SERVER_ERROR'].includes(reason.code)
 const retrySeconds=(value:string|null)=>{
   if(!value||!/^\d{1,5}$/.test(value))return null
   const seconds=Number(value)
   return seconds>0&&seconds<=86400?seconds:null
 }
-type CallOptions={idempotencyKey?:string;timeoutMs?:number}
+type CallOptions={idempotencyKey?:string;timeoutMs?:number;signal?:AbortSignal}
 export async function call<T>(path:string,method='GET',body?:unknown,token?:string,options:CallOptions={}):Promise<T>{
   const headers:Record<string,string>={'Accept':'application/json'}
   if(body!==undefined)headers['Content-Type']='application/json'
@@ -31,17 +33,25 @@ export async function call<T>(path:string,method='GET',body?:unknown,token?:stri
   if(options.idempotencyKey)headers['Idempotency-Key']=options.idempotencyKey
   const timeoutMs=options.timeoutMs??12000
   if(!Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>60000)throw new ApiError('Invalid timeout settings.',0,'CLIENT_INVALID_TIMEOUT')
+  const external=options.signal
+  if(external?.aborted)throw new ApiError('Request cancelled.',0,'REQUEST_CANCELLED')
   const controller=new AbortController()
+  const onAbort=()=>controller.abort()
+  external?.addEventListener('abort',onAbort,{once:true})
+  if(external?.aborted)controller.abort()
   const timer=setTimeout(()=>controller.abort(),timeoutMs)
   let res:Response
   try{
     res=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:controller.signal})
   }catch(reason){
+    if(external?.aborted)throw new ApiError('Request cancelled.',0,'REQUEST_CANCELLED')
     if(controller.signal.aborted)throw new ApiError('The request timed out. Check your connection and retry.',0,'REQUEST_TIMEOUT')
     throw new ApiError('API unavailable. Start the backend or check your connection.',0,'NETWORK_UNAVAILABLE')
   }finally{
     clearTimeout(timer)
+    external?.removeEventListener('abort',onAbort)
   }
+  if(external?.aborted)throw new ApiError('Request cancelled.',0,'REQUEST_CANCELLED')
   if(!res.ok){
     if(res.status===401)throw new ApiError('Session expired or invalid.',401,'SESSION_INVALID')
     if(res.status===429){
@@ -54,7 +64,11 @@ export async function call<T>(path:string,method='GET',body?:unknown,token?:stri
     if(res.status>=500)throw new ApiError('Server temporarily unavailable. Please retry.',res.status,'SERVER_ERROR')
     throw new ApiError('Request failed ('+res.status+').',res.status,'REQUEST_REJECTED')
   }
-  try{return await res.json() as T}catch{
+  try{const data=await res.json() as T
+    if(external?.aborted)throw new ApiError('Request cancelled.',0,'REQUEST_CANCELLED')
+    return data
+  }catch(reason){
+    if(isRequestCancelled(reason))throw reason
     throw new ApiError('The service returned an invalid response. Please reload this view.',0,'INVALID_RESPONSE')
   }
 }
