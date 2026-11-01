@@ -127,8 +127,9 @@ useEffect(()=>{
   return()=>window.removeEventListener('beforeunload',warn)
 },[planDirty,preferenceDraftDirty,pendingSave])
 const changeView=(v:View)=>{
-  if(view==='learning'&&v!==view&&preferenceDraftDirty&&!window.confirm('Discard unsaved learning-profile changes?'))return
+  if(view==='learning'&&v!==view&&preferenceDraftDirty&&!window.confirm('Discard unsaved learning-profile changes?'))return false
   setView(v);setMobile(false);setError('')
+  return true
 }
 const toggle=(id:string,key:'target_skill_ids'|'known_skill_ids')=>{
   setPlanDirty(true);setPlanErrors({})
@@ -151,7 +152,15 @@ async function logout(){if(token)try{await call('/v1/auth/logout','POST',undefin
 async function savePath(){if(!token){setAuthOpen(true);return}setBusy(true);try{const data=await call<{id:string;pathway:Pathway}>('/v1/me/pathways','POST',plan,token,{idempotencyKey:saveKey(plan,token,'pathway')});setSaved(s=>[{id:data.id,pathway:data.pathway,created_at:new Date().toISOString()},...s.filter(row=>row.id!==data.id)]);saveRequest.current=null;setSelected(data.id);setGuestDraft(null);setPendingSave(null);setPlanDirty(false);celebrate('pathway');changeView('learning');notify('Pathway saved.')}catch(x){if(isConnectionFailure(x)||(x instanceof ApiError&&x.code==='INVALID_RESPONSE'))setPendingSave('pathway');fail(x)}finally{setBusy(false)}}
 async function saveGuestPlan(){if(!token||!guestDraft)return;setBusy(true);try{const data=await call<{id:string;pathway:Pathway}>('/v1/me/pathways','POST',guestDraft,token,{idempotencyKey:saveKey(guestDraft,token,'guest')});setSaved(current=>[{id:data.id,pathway:data.pathway,created_at:new Date().toISOString()},...current.filter(row=>row.id!==data.id)]);saveRequest.current=null;setSelected(data.id);setGuestDraft(null);setPendingSave(null);celebrate('guest');setView('learning');notify('Guest learning choices saved as a new account pathway.')}catch(x){if(isConnectionFailure(x)||(x instanceof ApiError&&x.code==='INVALID_RESPONSE'))setPendingSave('guest');fail(x)}finally{setBusy(false)}}
 async function updatePreferences(changes:LearningPreferencesUpdate){if(!token)throw new Error('Sign in to save learning preferences.');setPreferencesBusy(true);try{const data=await call<LearningPreferences>('/v1/me/preferences','PATCH',changes,token);setPreferences(data);celebrate('preferences');notify('Learning preferences saved to your account.')}catch(x){fail(x);throw x}finally{setPreferencesBusy(false)}}
-function applyPreferences(){if(!preferences||!preferences.career_goal.trim()||!preferences.target_skill_ids.length)return;setPlan(previous=>({...previous,career_goal:preferences.career_goal,target_skill_ids:[...preferences.target_skill_ids],known_skill_ids:[...preferences.known_skill_ids],weekly_hours:preferences.weekly_hours}));setPathway(null);setPlanDirty(true);changeView('pathway');notify('Learning preferences applied. Generate a new pathway to use these choices.')}
+function applyPreferences(){
+  if(!preferences||!preferences.career_goal.trim()||!preferences.target_skill_ids.length)return
+  if(!changeView('pathway'))return
+  setPlan(previous=>({...previous,career_goal:preferences.career_goal,
+    target_skill_ids:[...preferences.target_skill_ids],
+    known_skill_ids:[...preferences.known_skill_ids],weekly_hours:preferences.weekly_hours}))
+  setPathway(null);setPlanDirty(true)
+  notify('Learning preferences applied. Generate a new pathway to use these choices.')
+}
 async function mark(skillId:string,status:string){
   if(!token||!selected||progressUpdatingSkill)return
   if(!progress?.revision){setProgressError('Load the latest progress before editing.');return}
