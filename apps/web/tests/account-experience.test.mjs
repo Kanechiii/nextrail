@@ -26,7 +26,7 @@ test('preference editor reflects server defaults, separates save from applying a
   assert.match(panel,/onSubmit=\{submit\}/)
   assert.match(panel,/onSave\(\{/)
   assert.match(app,/setPlan\(previous=>\(\{\.\.\.previous,career_goal:preferences\.career_goal/)
-  assert.match(app,/setPathway\(null\);changeView\('pathway'\)/)
+  assert.match(app,/setPathway\(null\);setPlanDirty\(true\);changeView\('pathway'\)/)
 })
 
 test('guest pathway snapshot is captured after actual preview, never silently transferred',()=>{
@@ -37,7 +37,8 @@ test('guest pathway snapshot is captured after actual preview, never silently tr
   assert.match(app,/call<\{id:string;pathway:Pathway\}>\('\/v1\/me\/pathways','POST',guestDraft,token,\{idempotencyKey:saveKey\(guestDraft,token,'guest'\)\}\)/)
   assert.match(app,/onClick=\{saveGuestPlan\}/)
   assert.match(app,/Nothing transfers automatically/)
-  assert.match(app,/onClick=\{\(\)=>setGuestDraft\(null\)\}/)
+  assert.match(app,/if\(pendingSave==='guest'&&!window\.confirm\(/)
+  assert.match(app,/setPendingSave\(null\);setGuestDraft\(null\)/)
   assert.doesNotMatch(app,/useEffect\([^\n]*saveGuestPlan\(/)
 })
 
