@@ -13,3 +13,10 @@ export function appendFeedback(
 export function removeFeedback(previous:FeedbackMessage[],id:number){
   return previous.filter(item=>item.id!==id)
 }
+
+/** Prevent repeated API failures from flooding screen-reader live regions. */
+export function suppressRepeatedError(
+  previous:{message:string;at:number}|null,message:string,at:number,windowMs=6000,
+){
+  return previous!==null&&previous.message===message&&at>=previous.at&&at-previous.at<windowMs
+}
