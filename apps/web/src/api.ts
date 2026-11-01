@@ -25,12 +25,13 @@ const retrySeconds=(value:string|null)=>{
   const seconds=Number(value)
   return seconds>0&&seconds<=86400?seconds:null
 }
-type CallOptions={idempotencyKey?:string;timeoutMs?:number;signal?:AbortSignal}
+type CallOptions={idempotencyKey?:string;timeoutMs?:number;signal?:AbortSignal;progressRevision?:string}
 export async function call<T>(path:string,method='GET',body?:unknown,token?:string,options:CallOptions={}):Promise<T>{
   const headers:Record<string,string>={'Accept':'application/json'}
   if(body!==undefined)headers['Content-Type']='application/json'
   if(token)headers.Authorization='Bearer '+token
   if(options.idempotencyKey)headers['Idempotency-Key']=options.idempotencyKey
+  if(options.progressRevision)headers['If-Match']='"'+options.progressRevision+'"'
   const timeoutMs=options.timeoutMs??12000
   if(!Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>60000)throw new ApiError('Invalid timeout settings.',0,'CLIENT_INVALID_TIMEOUT')
   const external=options.signal
@@ -60,7 +61,10 @@ export async function call<T>(path:string,method='GET',body?:unknown,token?:stri
     }
     if(res.status===503)throw new ApiError('Service temporarily unavailable. Your changes may not have been saved.',503,'SERVICE_UNAVAILABLE',retrySeconds(res.headers.get('Retry-After')))
     if(res.status===422)throw new ApiError('Please check your inputs.',422,'INVALID_INPUT')
-    if(res.status===409)throw new ApiError('This save key was already used with different inputs.',409,'IDEMPOTENCY_CONFLICT')
+    if(res.status===409){
+      if(path.includes('/progress/'))throw new ApiError('Progress changed in another tab. Reload the latest progress before editing.',409,'PROGRESS_STALE')
+      throw new ApiError('This save key was already used with different inputs.',409,'IDEMPOTENCY_CONFLICT')
+    }
     if(res.status>=500)throw new ApiError('Server temporarily unavailable. Please retry.',res.status,'SERVER_ERROR')
     throw new ApiError('Request failed ('+res.status+').',res.status,'REQUEST_REJECTED')
   }
