@@ -66,8 +66,72 @@ useEffect(()=>{if(!token){setAccountLoadError('');setAccountLoading(false);retur
 useEffect(()=>{if(!token){setPreferences(null);setPreferencesProblem('');setPreferencesLoading(false);return}let active=true;setPreferences(null);setPreferencesProblem('');setPreferencesLoading(true);call<LearningPreferences>('/v1/me/preferences','GET',undefined,token).then(data=>{if(active)setPreferences(data)}).catch(reason=>{if(active){markConnectionFailure(reason);setPreferencesProblem('Could not load learning preferences. Please retry.')}}).finally(()=>{if(active)setPreferencesLoading(false)});return()=>{active=false}},[token,preferencesRequest])
 useEffect(()=>{if(!token||!selected){setProgress(null);setProgressError('');setProgressLoading(false);return}setProgress(null);setProgressError('');setProgressLoading(true);let alive=true;call<Progress>('/v1/me/pathways/'+encodeURIComponent(selected)+'/progress','GET',undefined,token).then(p=>{if(alive){setProgress(p);setProgressError('')}}).catch(reason=>{if(alive){markConnectionFailure(reason);setProgressError(reason instanceof Error?reason.message:'Unable to load progress.')}}).finally(()=>{if(alive)setProgressLoading(false)});return()=>{alive=false}},[token,selected,progressRequest])
 async function retryConnection(){if(connectionChecking)return;setConnectionChecking(true);try{await call('/ready','GET',undefined,undefined,{timeoutMs:5000});const available=await call<{items:Skill[]}>('/v1/skills','GET',undefined,undefined,{timeoutMs:5000});setSkills(available.items);setSkillsLoading(false);setOnline(true);setConnectionProblem(null);setCatalogRequest(n=>n+1)}catch(reason){markConnectionFailure(reason);pushToast('error','The backend is still unavailable. Check the local API and retry.')}finally{setConnectionChecking(false)}}
-const changeView=(v:View)=>{setView(v);setMobile(false);setError('')}
-const toggle=(id:string,key:'target_skill_ids'|'known_skill_ids')=>setPlan(p=>({...p,[key]:p[key].includes(id)?p[key].filter(x=>x!==id):[...p[key],id]}))
+function openCourseDetails(course:Course){
+  dialogAnchor.current=document.activeElement instanceof HTMLElement?document.activeElement:null
+  if(!dialogMarker.current){
+    const marker=crypto.randomUUID()
+    const previous=window.history.state
+    window.history.pushState({
+      ...(previous&&typeof previous==='object'?previous:{}),__nextrailCourseDialog:marker,
+    },'',window.location.href)
+    dialogMarker.current=marker
+  }
+  setDetailCourse(course)
+}
+function closeCourseDetails(){
+  const marker=dialogMarker.current
+  dialogMarker.current=null
+  setDetailCourse(null)
+  if(marker&&window.history.state?.__nextrailCourseDialog===marker)window.history.back()
+  window.requestAnimationFrame(()=>dialogAnchor.current?.focus())
+}
+useEffect(()=>{
+  function onBack(){
+    if(dialogMarker.current){
+      dialogMarker.current=null
+      setDetailCourse(null)
+      window.requestAnimationFrame(()=>dialogAnchor.current?.focus())
+    }
+  }
+  window.addEventListener('popstate',onBack)
+  return()=>window.removeEventListener('popstate',onBack)
+},[])
+useEffect(()=>{
+  function reconnectHint(){setConnectionProblem(current=>current??'offline')}
+  function offlineHint(){setConnectionProblem('offline');setOnline(false)}
+  function revalidateOnReturn(){
+    if(document.visibilityState!=='visible')return
+    if(Date.now()-lastResumeCheck.current<15000)return
+    lastResumeCheck.current=Date.now()
+    // Only perform safe GETs; never resubmit a pending pathway or milestone.
+    if(token&&!progressUpdatingSkill&&selected)setProgressRequest(n=>n+1)
+  }
+  window.addEventListener('online',reconnectHint)
+  window.addEventListener('offline',offlineHint)
+  document.addEventListener('visibilitychange',revalidateOnReturn)
+  window.addEventListener('pageshow',revalidateOnReturn)
+  return()=>{
+    window.removeEventListener('online',reconnectHint)
+    window.removeEventListener('offline',offlineHint)
+    document.removeEventListener('visibilitychange',revalidateOnReturn)
+    window.removeEventListener('pageshow',revalidateOnReturn)
+  }
+},[token,selected,progressUpdatingSkill])
+useEffect(()=>{
+  const dirty=planDirty||preferenceDraftDirty||pendingSave!==null
+  if(!dirty)return
+  const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
+  window.addEventListener('beforeunload',warn)
+  return()=>window.removeEventListener('beforeunload',warn)
+},[planDirty,preferenceDraftDirty,pendingSave])
+const changeView=(v:View)=>{
+  if(view==='learning'&&v!==view&&preferenceDraftDirty&&!window.confirm('Discard unsaved learning-profile changes?'))return
+  setView(v);setMobile(false);setError('')
+}
+const toggle=(id:string,key:'target_skill_ids'|'known_skill_ids')=>{
+  setPlanDirty(true);setPlanErrors({})
+  setPlan(p=>({...p,[key]:p[key].includes(id)?p[key].filter(x=>x!==id):[...p[key],id]}))
+}
 async function generate(e:FormEvent){e.preventDefault();setBusy(true);setGenerating(true);const snapshot:Plan={...plan,target_skill_ids:[...plan.target_skill_ids],known_skill_ids:[...plan.known_skill_ids]};try{const generated=await call<Pathway>('/v1/pathways/preview','POST',snapshot);setPathway(generated);if(!token)setGuestDraft(snapshot);notify('Your prerequisite-aware route is ready.')}catch(x){setPathway(null);fail(x)}finally{setBusy(false);setGenerating(false)}}
 async function authenticate(e:FormEvent){e.preventDefault();setBusy(true);try{if(authMode==='reset'){await call('/v1/auth/password-reset/request','POST',{email});notify('Reset requested. Email delivery is not configured in the prototype.');return}if(authMode==='register')await call('/v1/auth/register','POST',{email,password});const result=await call<{access_token:string}>('/v1/auth/login','POST',{email,password});setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);saveRequest.current=null;setToken(result.access_token);setAuthOpen(false);setPassword('');if(guestDraft){setView('learning');notify('Signed in. Review your guest plan before choosing whether to save it.')}else notify('Signed in. Saved progress is now available.')}catch(x){fail(x)}finally{setBusy(false)}}
 async function logout(){if(token)try{await call('/v1/auth/logout','POST',undefined,token)}catch{}setToken(null);setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);setGuestDraft(null);saveRequest.current=null;resetSuccess();clearToasts();changeView('discover');pushToast('info','Signed out of this browser session.')}
