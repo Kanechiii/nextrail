@@ -40,7 +40,7 @@ test('saved dashboard drives status updates through its existing authenticated A
   assert.match(app,/role="progressbar"/)
   assert.match(app,/saved\.find\(item=>item\.id===selected\)\?\.pathway/)
   assert.match(app,/Saved course reference/)
-  assert.match(app,/setProgress\(null\);let alive=true/)
+  assert.match(app,/setProgress\(null\);setProgressError\(''\);setProgressLoading\(true\);let alive=true/)
   assert.match(app,/setSelected\(''\)/)
 })
 
