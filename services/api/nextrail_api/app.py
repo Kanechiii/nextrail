@@ -1,5 +1,6 @@
 """Guest-first JSON API with verified bearer ownership boundaries."""
 import json
+from typing import Literal
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,16 @@ class ResetRequest(StrictBody):
 class ResetConfirm(StrictBody):
     token: str
     new_password: str
+
+
+class PasswordChange(StrictBody):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
+class AccountDeletion(StrictBody):
+    current_password: str = Field(min_length=1, max_length=128)
+    confirmation: Literal["DELETE MY ACCOUNT"]
 
 
 class PlanInput(StrictBody):
@@ -168,6 +179,63 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     @app.get("/v1/me")
     async def me(owner: str = Depends(current_owner)):
         return auth().account(owner)
+
+    @app.get("/v1/me/sessions")
+    async def sessions(
+        authorization: str = Header(),
+        owner: str = Depends(current_owner),
+    ):
+        return {"active_count": auth().active_sessions(authorization[7:])}
+
+    @app.post("/v1/me/sessions/revoke-others")
+    async def revoke_other_sessions(
+        request: Request, authorization: str = Header(),
+        owner: str = Depends(current_owner),
+    ):
+        limiter.enforce(request, "revoke_other_sessions", 12)
+        return {"revoked_count": auth().revoke_other_sessions(authorization[7:])}
+
+    @app.post("/v1/me/password")
+    async def change_password(
+        body: PasswordChange, request: Request,
+        authorization: str = Header(),
+        owner: str = Depends(current_owner),
+    ):
+        limiter.enforce(request, "change_password", 5)
+        try:
+            return {
+                "updated": auth().change_password(
+                    authorization[7:], body.current_password, body.new_password
+                ),
+                "sessions_revoked": True,
+            }
+        except AuthError:
+            raise HTTPException(400, "Invalid password change credentials")
+
+    @app.get("/v1/me/export")
+    async def export_account(
+        request: Request, authorization: str = Header(),
+        owner: str = Depends(current_owner),
+    ):
+        limiter.enforce(request, "account_export", 6)
+        try:
+            return auth().export_account(authorization[7:])
+        except AuthError:
+            raise HTTPException(413, "Account export requires an offline bulk process")
+
+    @app.delete("/v1/me/account")
+    async def delete_account(
+        body: AccountDeletion, request: Request,
+        authorization: str = Header(),
+        owner: str = Depends(current_owner),
+    ):
+        limiter.enforce(request, "account_delete", 3)
+        try:
+            return {"deleted": auth().delete_account(
+                authorization[7:], body.current_password
+            )}
+        except AuthError:
+            raise HTTPException(400, "Invalid account deletion credentials")
 
     @app.get("/v1/me/preferences")
     async def get_preferences(owner: str = Depends(current_owner)):

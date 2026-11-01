@@ -18,7 +18,7 @@ The sidecar creates its own `account_preferences_meta` version without changing 
 
 No React components, CSS, color palette, navigation layouts, or other UI redesign files are changed in this phase. The distinct Phase 13 UI branch is independent and can be reviewed or merged later. Existing guest endpoints do not require a login or preference record. Persistent saved data requires a configured durable database path; the current default in-memory database is not production persistent.
 
-Email verification, password reset delivery, deletion and export, security hardening for publicly exposed accounts, production cloud storage, and true cross-device hosting remain separately gated work.
+Phase 18 adds bounded account export, reauthenticated local-data deletion, password change and active-session controls without changing this onboarding model. Email verification, password reset delivery, security hardening for publicly exposed accounts, encrypted backup retention, production cloud storage, and true cross-device hosting remain separately gated work. See `docs/account-lifecycle-security.md`.
 
 ## Verification
 
