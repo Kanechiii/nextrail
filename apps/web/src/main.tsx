@@ -9,4 +9,5 @@ import './dashboard-insights.css'
 import './account-experience.css'
 import './provider-evidence.css'
 import './feedback.css'
+import './recovery.css'
 createRoot(document.getElementById('root')!).render(<React.StrictMode><WorkspaceErrorBoundary scope="application"><App/></WorkspaceErrorBoundary></React.StrictMode>)
