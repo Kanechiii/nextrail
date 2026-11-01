@@ -36,6 +36,12 @@ modification time is a bounded freshness heuristic, not authenticated backup
 metadata. An attacker who controls the file and matching expected hash can
 forge evidence; independent backup access controls remain required.
 
+A separate `scripts/rehearse_database_restore.py` command now provides an
+**offline disposable restore rehearsal** after the active/backup readiness check.
+See `docs/database-restore-rehearsal.md`; it creates a verified temporary
+restore without overwriting the active database or backup. Neither preflight
+authorizes production.
+
 A successful result does **not** verify OS ACLs, storage or transport
 encryption, remote replication, key management, disaster-recovery objectives,
 secure backup disposal, multi-host database behavior, delivery of account
