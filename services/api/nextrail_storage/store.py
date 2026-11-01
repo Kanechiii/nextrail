@@ -13,6 +13,11 @@ SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 STATES = ("not_started", "in_progress", "completed")
 
 
+class ProgressConflict(StorageError):
+    """A milestone changed since the client fetched progress."""
+
+
+
 def owner_id(value):
     if not isinstance(value, str) or not OWNER.fullmatch(value):
         raise StorageError("Invalid authenticated owner reference")
@@ -206,12 +211,25 @@ class LearningStore:
             )
         return True
 
-    def set_progress(self, owner, identifier, skill, status):
+    def progress_revision(self, owner, identifier):
+        owner = owner_id(owner)
+        row = self.conn.execute(
+            "SELECT COALESCE(MAX(event_id),0) AS revision FROM audit_events "
+            "WHERE owner_id=? AND entity_type='milestone' "
+            "AND entity_id=? AND operation='status_changed'",
+            (owner, identifier),
+        ).fetchone()
+        return str(row["revision"])
+
+    def set_progress(self, owner, identifier, skill, status, *, expected_revision=None):
         owner, skill = owner_id(owner), slug(skill)
         if not isinstance(status, str) or status not in STATES:
             raise StorageError("Invalid progress status")
         with atomic(self.conn):
             pathway = self.get_pathway(owner, identifier)
+            # Compare and write under BEGIN IMMEDIATE to prevent stale tab writes.
+            if expected_revision is not None and expected_revision != self.progress_revision(owner, identifier):
+                raise ProgressConflict("Progress changed since the last read")
             if skill not in {m["skill_id"] for m in pathway["milestones"]}:
                 raise StorageError("Skill not in saved pathway")
             previous = self.conn.execute(
@@ -241,7 +259,8 @@ class LearningStore:
         steps = [{"skill_id": m["skill_id"], "status": statuses.get(m["skill_id"], "not_started")}
                  for m in pathway["milestones"]]
         return {"pathway_id": identifier, "milestones": steps,
-                "completed": sum(s["status"] == "completed" for s in steps), "total": len(steps)}
+                "completed": sum(s["status"] == "completed" for s in steps),
+                "total": len(steps), "revision": self.progress_revision(owner, identifier)}
 
     def save_course(self, owner, resource):
         owner, resource = owner_id(owner), slug(resource)
