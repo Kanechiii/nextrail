@@ -45,7 +45,12 @@ class ApiErrorResilienceTests(unittest.TestCase):
 
     def test_database_failure_does_not_masquerade_as_invalid_session(self):
         token = self.owner()
-        self.client.app.state.db.close()
+        class FailedAuthenticationDatabase:
+            def session_owner(self, key):
+                raise sqlite3.OperationalError("private.sqlite unavailable")
+            def login(self, email, password):
+                raise sqlite3.OperationalError("private@example.org")
+        self.client.app.state.auth = FailedAuthenticationDatabase()
         self.assert_database_outage(self.client.get("/v1/me", headers=token))
         self.assert_database_outage(self.client.post("/v1/auth/login", json={
             "email": "private@example.org", "password": PASSWORD,
@@ -136,24 +141,38 @@ class ApiErrorResilienceTests(unittest.TestCase):
         self.assertNotEqual(a.json()["id"], b.json()["id"])
 
     def test_audit_failure_rolls_back_pathway_and_idempotency_ledger(self):
-        token = self.owner()
-        key = str(uuid4())
-        self.client.app.state.db.execute(
-            "CREATE TRIGGER block_creation BEFORE INSERT ON audit_events "
-            "BEGIN SELECT RAISE(ABORT, 'private.sqlite blocked'); END"
-        )
-        response = self.client.post("/v1/me/pathways", json=PLAN,
-            headers={**token, "Idempotency-Key": key})
-        self.assert_database_outage(response)
-        self.assertEqual(self.client.app.state.db.execute(
-            "SELECT COUNT(*) FROM pathway_idempotency").fetchone()[0], 0)
-        self.assertEqual(self.client.app.state.db.execute(
-            "SELECT COUNT(*) FROM learning_pathways").fetchone()[0], 0)
-        self.client.app.state.db.execute("DROP TRIGGER block_creation")
-        retry = self.client.post("/v1/me/pathways", json=PLAN,
-            headers={**token, "Idempotency-Key": key})
-        self.assertEqual(retry.status_code, 201, retry.text)
-        self.assertEqual(len(self.client.get("/v1/me/pathways", headers=token).json()["items"]), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            location = str(Path(directory) / "isolated.sqlite")
+            with TestClient(create_app(database_path=location)) as client:
+                self.assertEqual(client.post("/v1/auth/register", json={
+                    "email": "temp@example.org", "password": PASSWORD,
+                }).status_code, 201)
+                login = client.post("/v1/auth/login", json={
+                    "email": "temp@example.org", "password": PASSWORD,
+                })
+                self.assertEqual(login.status_code, 200)
+                headers = {"Authorization": "Bearer " + login.json()["access_token"],
+                           "Idempotency-Key": str(uuid4())}
+                # This second connection is created on the test thread; the
+                # API owns its SQLite connection on the TestClient thread.
+                with sqlite3.connect(location) as editor:
+                    editor.execute(
+                        "CREATE TRIGGER block_creation BEFORE INSERT ON audit_events "
+                        "BEGIN SELECT RAISE(ABORT, 'private.sqlite blocked'); END"
+                    )
+                response = client.post("/v1/me/pathways", json=PLAN, headers=headers)
+                self.assert_database_outage(response)
+                with sqlite3.connect(location) as inspector:
+                    self.assertEqual(inspector.execute(
+                        "SELECT COUNT(*) FROM pathway_idempotency").fetchone()[0], 0)
+                    self.assertEqual(inspector.execute(
+                        "SELECT COUNT(*) FROM learning_pathways").fetchone()[0], 0)
+                    inspector.execute("DROP TRIGGER block_creation")
+                retry = client.post("/v1/me/pathways", json=PLAN, headers=headers)
+                self.assertEqual(retry.status_code, 201, retry.text)
+                self.assertEqual(len(client.get("/v1/me/pathways", headers={
+                    "Authorization": headers["Authorization"]
+                }).json()["items"]), 1)
 
     def test_delete_cascades_key_record_without_leaving_stale_replays(self):
         token = self.owner()
