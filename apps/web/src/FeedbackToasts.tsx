@@ -19,6 +19,18 @@ export function useFeedbackToasts(){
 
 function ToastItem({toast,onDismiss}:{toast:ToastMessage;onDismiss:(id:number)=>void}){
   const [paused,setPaused]=useState(false)
+  const closeRef=useRef<HTMLButtonElement>(null)
+  const dismiss=()=>{
+    // Arrival never steals focus. When a focused dismiss button disappears,
+    // return focus to the next toast or a stable workspace control.
+    if(document.activeElement===closeRef.current){
+      const buttons=Array.from(closeRef.current?.closest('.feedback-toast-region')?.querySelectorAll<HTMLButtonElement>('.feedback-toast-close')??[])
+      const index=buttons.indexOf(closeRef.current!)
+      const next=buttons[index+1]??buttons[index-1]??document.querySelector<HTMLButtonElement>('.top .theme-switch')
+      next?.focus()
+    }
+    onDismiss(toast.id)
+  }
   useEffect(()=>{
     // Keep errors visible until the user dismisses them.
     if(paused||toast.kind==='error')return
@@ -27,15 +39,15 @@ function ToastItem({toast,onDismiss}:{toast:ToastMessage;onDismiss:(id:number)=>
   },[toast.id,toast.kind,paused,onDismiss])
   const Icon=toast.kind==='success'?CheckCircle2:toast.kind==='error'?AlertCircle:Info
   return <div className={'feedback-toast feedback-toast-'+toast.kind}
-    role={toast.kind==='error'?'alert':'status'} aria-atomic="true"
+    role={toast.kind==='error'?'alert':'status'} aria-live={toast.kind==='error'?'assertive':'polite'} aria-atomic="true"
     onMouseEnter={()=>setPaused(true)} onMouseLeave={()=>setPaused(false)}
     onFocusCapture={()=>setPaused(true)} onBlurCapture={event=>{
       if(!event.currentTarget.contains(event.relatedTarget))setPaused(false)
     }}>
     <Icon size={19} aria-hidden="true" className="feedback-toast-icon"/>
     <span className="feedback-toast-message">{toast.message}</span>
-    <button type="button" className="feedback-toast-close"
-      aria-label={'Dismiss '+toast.kind+' notification'} onClick={()=>onDismiss(toast.id)}>
+    <button type="button" ref={closeRef} className="feedback-toast-close"
+      aria-label={'Dismiss '+toast.kind+' notification'} onClick={dismiss}>
       <X size={16} aria-hidden="true"/>
     </button>
   </div>
