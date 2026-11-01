@@ -84,6 +84,14 @@ def _structure(path, *, active):
         raise DatabaseReadinessError("Unable to inspect SQLite deployment structure") from exc
 
 
+def _verified_integrity(path, label):
+    """Normalize existing recovery errors into the readiness preflight contract."""
+    try:
+        return inspect_database(path)
+    except DatabaseRecoveryError as exc:
+        raise DatabaseReadinessError(f"{label} failed SQLite integrity validation") from exc
+
+
 def verify_database_readiness(
     database, backup, expected_backup_sha256, *,
     max_backup_age_hours=24, now=None,
@@ -110,7 +118,7 @@ def verify_database_readiness(
     backup_path = _existing_file(backup)
     if source_path == backup_path:
         raise DatabaseReadinessError("Backup must be a separate SQLite file")
-    source_report = inspect_database(source_path)
+    source_report = _verified_integrity(source_path, "Active database")
     source_optional = _structure(source_path, active=True)
 
     modified = datetime.fromtimestamp(backup_path.stat().st_mtime, tz=timezone.utc)
@@ -119,7 +127,7 @@ def verify_database_readiness(
         raise DatabaseReadinessError("Backup file timestamp violates freshness policy")
     if not hmac.compare_digest(_sha256(backup_path), expected_backup_sha256):
         raise DatabaseReadinessError("Backup SHA-256 does not match the approved pin")
-    backup_report = inspect_database(backup_path)
+    backup_report = _verified_integrity(backup_path, "Backup")
     backup_optional = _structure(backup_path, active=False)
     if backup_report != source_report or source_optional != backup_optional:
         raise DatabaseReadinessError("Backup does not match required application schema")
