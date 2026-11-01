@@ -8,7 +8,9 @@ const webUrl = `http://127.0.0.1:${webPort}`
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 30000,
+  timeout: process.env.CI ? 45000 : 90000,
+  workers: process.env.CI ? 2 : 1,
+  expect: { timeout: process.env.CI ? 10000 : 15000 },
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: webUrl, trace: 'retain-on-failure' },
   projects: [

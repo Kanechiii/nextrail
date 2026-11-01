@@ -1,4 +1,15 @@
-import {test, expect, type Page} from '@playwright/test'
+import {test, expect, type Page, type TestInfo} from '@playwright/test'
+
+// Keep screenshots as review evidence but never block the functional route workflow.
+async function captureReviewScreenshot(page: Page, info: TestInfo, filename: string) {
+  if (!process.env.CI && process.env.NEXTRAIL_E2E_SCREENSHOTS !== '1') return
+  await page.screenshot({
+    path: info.outputPath(filename),
+    animations: 'disabled',
+    fullPage: false,
+    timeout: 15000,
+  })
+}
 
 async function navigate(page:Page, name:string) {
   const menu=page.getByRole('button',{name:'Open navigation',exact:true})
@@ -9,10 +20,14 @@ async function navigate(page:Page, name:string) {
 test('guest route, account save and confirmed completion', async ({page}, info)=>{
   await page.goto('/')
   await page.getByRole('group',{name:'Skills to learn'}).getByRole('checkbox').first().check()
+  const previewResponse = page.waitForResponse(response =>
+    response.url().includes('/api/v1/pathways/preview') &&
+    response.request().method() === 'POST'
+  )
   await page.getByRole('button',{name:'Generate learning route',exact:true}).click()
+  const result = await previewResponse
+  expect(result.ok(), `Pathway preview failed with HTTP ${result.status()}: ${await result.text()}`).toBe(true)
   await expect(page.getByRole('heading',{name:'Your learning route',exact:true})).toBeVisible()
-  await page.evaluate(()=>window.scrollTo(0,0))
-  await page.screenshot({path:test.info().outputPath('learning-route.png'),fullPage:true})
   await page.getByRole('button',{name:'Save route',exact:true}).click()
   const dialog=page.getByRole('dialog')
   await dialog.getByRole('button',{name:'Create account',exact:true}).click()
@@ -29,9 +44,11 @@ test('guest route, account save and confirmed completion', async ({page}, info)=
   await expect(page.getByRole('button',{name:'Complete milestone',exact:true})).toHaveCount(0)
   expect(await page.evaluate(()=>Object.keys(localStorage))).not.toContain('token')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+  await page.evaluate(()=>window.scrollTo(0,0))
+  await captureReviewScreenshot(page, info, 'learning-route.png')
 })
 
-test('themes, comparison, details and URL filter history', async ({page})=>{
+test('themes, comparison, details and URL filter history', async ({page}, info)=>{
   await page.route('**/api/v1/courses?**', route=>route.fulfill({json:{items:[
     {id:'test-html',title:'HTML test resource',provider_id:'fixture',provider_name:'Test fixture provider',skills:['html'],access_cost:'free',certificate_cost:'paid',evidence_status:'verified',synthetic:false},
     {id:'test-css',title:'CSS test resource',provider_id:'fixture',provider_name:'Test fixture provider',skills:['css'],access_cost:'unknown',certificate_cost:'unknown',evidence_status:'verified',synthetic:false},
@@ -64,11 +81,11 @@ test('themes, comparison, details and URL filter history', async ({page})=>{
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
   await page.emulateMedia({reducedMotion:'reduce'})
   await page.evaluate(()=>window.scrollTo(0,0))
-  await page.screenshot({path:test.info().outputPath('dashboard-light.png'),fullPage:true})
+  await captureReviewScreenshot(page, info, 'dashboard-light.png')
   if(await menu.isVisible()) await menu.click()
   await page.getByLabel('Color theme').selectOption('dark')
   await page.getByRole('navigation',{name:'Primary'}).getByRole('button',{name:'Discover courses',exact:true}).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark')
   await page.evaluate(()=>window.scrollTo(0,0))
-  await page.screenshot({path:test.info().outputPath('dashboard-dark.png'),fullPage:true})
+  await captureReviewScreenshot(page, info, 'dashboard-dark.png')
 })
