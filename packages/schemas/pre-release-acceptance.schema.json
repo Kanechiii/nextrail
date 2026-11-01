@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nextrail.local/pre-release-acceptance/v1",
+  "title": "Nextrail Offline Pre-release Acceptance Register",
+  "description": "Operator assertions only; evidence completeness is not production deployment authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "gates"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorized_provider_integration",
+        "reviewed_catalog_publication",
+        "production_account_recovery",
+        "transport_origin_and_abuse_controls",
+        "privacy_retention_and_erasure",
+        "database_backup_and_restore",
+        "reliability_load_and_observability",
+        "security_and_regression_validation",
+        "rollback_and_incident_response",
+        "manual_release_approval"
+      ],
+      "properties": {
+        "authorized_provider_integration": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "reviewed_catalog_publication": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "production_account_recovery": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "transport_origin_and_abuse_controls": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "privacy_retention_and_erasure": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "database_backup_and_restore": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "reliability_load_and_observability": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "security_and_regression_validation": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "rollback_and_incident_response": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        },
+        "manual_release_approval": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pending"
+            },
+            {
+              "$ref": "#/$defs/approved"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pending": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "pending"
+        }
+      }
+    },
+    "approved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reviewer",
+        "reviewed_at",
+        "evidence_file",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "status": {
+          "const": "approved"
+        },
+        "reviewer": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evidence_file": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+        },
+        "evidence_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
