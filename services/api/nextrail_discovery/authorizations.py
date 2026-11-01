@@ -49,7 +49,10 @@ def load_source_authorizations(source_registry, document, *, now=None):
     review evidence aborts the entire preflight, rather than being skipped.
     """
     moment = _moment(now)
-    sources = load_registry(source_registry)
+    try:
+        sources = load_registry(source_registry)
+    except SourceContractError as exc:
+        raise AuthorizationContractError("Invalid source registry for authorization preflight") from exc
     by_id = {source.id: source for source in sources}
     if (not isinstance(document, dict)
             or set(document) != {"schema_version", "authorizations"}
@@ -85,8 +88,11 @@ def load_source_authorizations(source_registry, document, *, now=None):
 
         # Permission evidence is tied to the registered official provider
         # website and explicitly approved hosts, never an arbitrary URL.
-        official_host = hostname(source.provider_website)
-        permission_host = hostname(row["permission_url"])
+        try:
+            official_host = hostname(source.provider_website)
+            permission_host = hostname(row["permission_url"])
+        except SourceContractError as exc:
+            raise AuthorizationContractError("Invalid official permission evidence URL") from exc
         if (permission_host not in source.allowed_hosts
                 or (permission_host != official_host
                     and not permission_host.endswith("." + official_host))):

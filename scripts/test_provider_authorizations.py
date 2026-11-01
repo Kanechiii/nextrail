@@ -62,6 +62,12 @@ class ProviderAuthorizationTests(unittest.TestCase):
             load_source_authorizations(sources, sample, now=NOW), ()
         )
 
+    def test_invalid_registry_is_a_scoped_authorization_error(self):
+        registry, document = fixtures()
+        registry["sources"][0]["source_url"] = "http://example.org/catalog"
+        with self.assertRaises(AuthorizationContractError):
+            self.approve(registry, document)
+
     def test_does_not_mutate_review_inputs(self):
         registry, document = fixtures()
         old = copy.deepcopy((registry, document))
