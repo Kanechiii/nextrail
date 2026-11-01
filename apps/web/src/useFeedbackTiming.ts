@@ -28,7 +28,7 @@ export function useDelayedPending(pending:boolean,delay=SKELETON_DELAY_MS){
 /** Confirmed action feedback, never a substitute for server persistence. */
 export function useActionSuccess(){
   const [successKey,setSuccessKey]=useState<string|null>(null)
-  const timer=useRef<ReturnType<typeof setTimeout>|null>(null)
+  const timer=useRef<number|null>(null)
   const reset=useCallback(()=>{
     if(timer.current!==null)window.clearTimeout(timer.current)
     timer.current=null
