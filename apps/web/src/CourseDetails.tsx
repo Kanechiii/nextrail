@@ -1,4 +1,5 @@
 import {useEffect,useRef} from 'react'
+import {animate,createScope,stagger} from 'animejs'
 import {ArrowUpRight,Bookmark,BookOpen,Check,ShieldCheck,X} from 'lucide-react'
 import type {Course} from './api'
 
@@ -37,8 +38,34 @@ export default function CourseDetails({course,saved,onClose,onSave}:Props){
   const dialog=useRef<HTMLDialogElement>(null)
   useEffect(()=>{
     const element=dialog.current
-    if(element&&!element.open)element.showModal()
-    return ()=>{if(element?.open)element.close()}
+    if(!element)return
+    if(!element.open)element.showModal()
+
+    // Native dialog semantics and focus trapping remain functional without motion.
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const scope=reduced?null:createScope({root:element}).add(()=>{
+      const visual=element.querySelector<HTMLElement>('.course-dialog-visual')
+      if(visual)animate(visual,{
+        opacity:{from:.7,to:1},
+        x:{from:-14,to:0},
+        duration:410,
+        ease:'out(3)',
+      })
+      const details=Array.from(element.querySelectorAll<HTMLElement>(
+        '.course-dialog-content h2, .course-dialog-content>p, .course-facts>div'
+      )).slice(0,7)
+      if(details.length)animate(details,{
+        opacity:{from:0,to:1},
+        y:{from:9,to:0},
+        delay:stagger(40),
+        duration:350,
+        ease:'out(3)',
+      })
+    })
+    return ()=>{
+      scope?.revert()
+      if(element.open)element.close()
+    }
   },[])
   const tone=providerTone(course)
   return <dialog ref={dialog} className={'course-dialog provider-'+tone} aria-labelledby="course-dialog-title" aria-describedby="course-dialog-summary" onClose={onClose}>
