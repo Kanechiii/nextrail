@@ -137,6 +137,20 @@ async function browserSmoke(binary){
     assert.equal(await expression("Boolean(document.querySelector('.reconnection-banner'))"),false)
     console.log('PASS: Chrome rendered guest discovery through npm run dev')
 
+    // Browser history must dismiss a native course dialog without losing
+    // the active workspace or trapping focus behind the overlay.
+    await expression("document.querySelector('.tabs button:nth-child(2)')?.click()")
+    await waitFor("Boolean(document.querySelector('.card-detail-trigger'))")
+    await expression("document.querySelector('.card-detail-trigger').focus();document.querySelector('.card-detail-trigger').click()")
+    await waitFor("Boolean(document.querySelector('dialog.course-dialog[open]'))")
+    await expression("history.back()")
+    await waitFor("!document.querySelector('dialog.course-dialog')")
+    await waitFor("document.activeElement?.classList.contains('card-detail-trigger')===true")
+    assert.equal(await expression("Boolean(document.querySelector('.intro'))"),false)
+    await expression("document.querySelector('.tabs button:first-child').click()")
+    await waitFor("document.querySelector('.catalog-results')?.getAttribute('aria-busy')==='false'")
+    console.log('PASS: Browser Back closes native course dialog and restores opener focus')
+
     // Simulated slow link and CPU are proxies for responsiveness, NOT a real
     // low-powered device measurement or an actual screen-reader session.
     await send('Emulation.setCPUThrottlingRate',{rate:4})
