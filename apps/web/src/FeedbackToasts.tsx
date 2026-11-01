@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {AlertCircle,CheckCircle2,Info,X} from 'lucide-react'
-import {appendFeedback,removeFeedback,type FeedbackKind,type FeedbackMessage} from './feedbackModel'
+import {appendFeedback,removeFeedback,suppressRepeatedError,type FeedbackKind,type FeedbackMessage} from './feedbackModel'
 
 type ToastKind=FeedbackKind
 type ToastMessage=FeedbackMessage
@@ -8,12 +8,18 @@ type ToastMessage=FeedbackMessage
 export function useFeedbackToasts(){
   const [toasts,setToasts]=useState<ToastMessage[]>([])
   const serial=useRef(0)
+  const lastError=useRef<{message:string;at:number}|null>(null)
   const push=useCallback((kind:ToastKind,message:string)=>{
+    const now=Date.now()
+    if(kind==='error'){
+      if(suppressRepeatedError(lastError.current,message,now))return
+      lastError.current={message,at:now}
+    }
     const id=++serial.current
     setToasts(previous=>appendFeedback(previous,kind,message,id))
   },[])
   const dismiss=useCallback((id:number)=>setToasts(previous=>removeFeedback(previous,id)),[])
-  const clear=useCallback(()=>setToasts([]),[])
+  const clear=useCallback(()=>{lastError.current=null;setToasts([])},[])
   return {toasts,push,dismiss,clear}
 }
 
