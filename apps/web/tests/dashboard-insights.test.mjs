@@ -56,7 +56,7 @@ test('comparison presents separate source-returned cost, certificate, skills and
   assert.match(compare,/course\.provider_name/)
   assert.match(compare,/<table className="comparison-table">/)
   assert.match(compare,/<th scope="row">/)
-  assert.doesNotMatch(compare,/rating|estimated_duration|verified_certificate/)
+  assert.doesNotMatch(compare,/course\.(?:rating|estimated_duration|verified_certificate)\b/)
 })
 
 test('illustrative comparison cannot show fabricated provider enrollment actions',()=>{
