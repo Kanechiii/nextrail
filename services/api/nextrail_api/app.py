@@ -3,7 +3,7 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from nextrail_ai import PlanningRequest
@@ -12,6 +12,7 @@ from nextrail_auth.preferences import AccountPreferencesStore
 from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
+from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
 
 
@@ -227,6 +228,39 @@ def create_app(*, database_path=":memory:", catalog=None, reset_delivery=None):
     @app.get("/v1/me/pathways")
     async def list_pathways(owner: str = Depends(current_owner)):
         return {"items": learning().list_pathways(owner)}
+
+    @app.get("/v1/me/learning/summary")
+    async def learning_summary(
+        limit: int = Query(default=20, ge=1, le=50),
+        after_id: str | None = Query(default=None, min_length=1, max_length=64),
+        owner: str = Depends(current_owner),
+    ):
+        try:
+            return learning().list_pathway_page(owner, limit=limit, after_id=after_id)
+        except KeyError:
+            raise HTTPException(404, "Pathway page cursor not found")
+        except StorageError:
+            raise HTTPException(422, "Invalid learning summary request")
+
+    @app.get("/v1/me/pathways/{pathway_id}/workspace")
+    async def pathway_workspace(pathway_id: str, owner: str = Depends(current_owner)):
+        try:
+            snapshot = learning().get_pathway(owner, pathway_id)
+            progress = learning().get_progress(owner, pathway_id)
+            return build_workspace(pathway_id, snapshot, progress, catalog)
+        except KeyError:
+            raise HTTPException(404, "Pathway not found")
+        except (WorkspaceError, StorageError):
+            raise HTTPException(422, "Saved pathway cannot be projected")
+
+    @app.delete("/v1/me/pathways/{pathway_id}")
+    async def delete_pathway(pathway_id: str, owner: str = Depends(current_owner)):
+        try:
+            return {"deleted": learning().delete_pathway(owner, pathway_id)}
+        except KeyError:
+            raise HTTPException(404, "Pathway not found")
+        except StorageError:
+            raise HTTPException(422, "Invalid pathway deletion request")
 
     @app.get("/v1/me/pathways/{pathway_id}")
     async def get_pathway(pathway_id: str, owner: str = Depends(current_owner)):
