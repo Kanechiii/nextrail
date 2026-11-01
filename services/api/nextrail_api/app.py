@@ -460,7 +460,7 @@ def create_app(
                         if_match: str | None = Header(default=None, alias="If-Match")):
         expected = None
         if if_match is not None:
-            if not re.fullmatch(r'"(0|[1-9][0-9]{0,18})"', if_match):
+            if not re.fullmatch(r'"[0-9a-f]{64}"', if_match):
                 raise HTTPException(422, "Invalid progress revision")
             expected = if_match[1:-1]
         try:
