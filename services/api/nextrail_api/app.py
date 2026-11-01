@@ -18,6 +18,7 @@ from nextrail_storage.workspace import WorkspaceError, build_workspace
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
 from .reliability import database_connection_ready
+from .public_boundary import public_host, enforce_public_boundary
 from .release import ReleaseError, load_reviewed_bundle
 
 
@@ -72,8 +73,9 @@ class PreferencesUpdate(StrictBody):
 def create_app(
     *, database_path=":memory:", catalog=None, reset_delivery=None,
     reviewed_catalog_path=None, reviewed_catalog_sha256=None, release_clock=None,
-    shared_rate_limit_key=None,
+    shared_rate_limit_key=None, public_origin=None,
 ):
+    public_dns_host = public_host(public_origin) if public_origin is not None else None
     if shared_rate_limit_key is not None and database_path == ":memory:":
         raise ValueError("Shared request limits require durable SQLite storage")
     if (reviewed_catalog_path is None) != (reviewed_catalog_sha256 is None):
@@ -112,6 +114,13 @@ def create_app(
             connection.close()
 
     app = FastAPI(title="Nextrail API", version="0.1.0", lifespan=lifespan)
+
+    if public_dns_host is not None:
+        @app.middleware("http")
+        async def strict_public_boundary(request: Request, call_next):
+            return await enforce_public_boundary(
+                request, call_next, origin=public_origin, host=public_dns_host
+            )
 
     @app.middleware("http")
     async def privacy_headers(request: Request, call_next):
