@@ -64,7 +64,7 @@ export default function CourseDetails({course,saved,onClose,onSave}:Props){
         <div className="course-dialog-foot">
           {course.synthetic?<span className="source-note"><ShieldCheck size={16}/> No fabricated enrollment link</span>:<>
             {course.url?<a className="course-visit" href={course.url} target="_blank" rel="noopener noreferrer">Visit course source <ArrowUpRight size={17}/></a>:<span className="source-note">No verified enrollment link available</span>}
-            <button className="course-save" disabled={saved} onClick={()=>onSave(course.id)}>{saved?<Check size={16}/>:<Bookmark size={16}/>} {saved?'Saved':'Save course'}</button>
+            <button className="course-save" disabled={saved} onClick={()=>{onClose();onSave(course.id)}}>{saved?<Check size={16}/>:<Bookmark size={16}/>} {saved?'Saved':'Save course'}</button>
           </>}
         </div>
       </div>
