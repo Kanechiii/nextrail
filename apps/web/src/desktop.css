@@ -38,6 +38,8 @@
   .auth-focus-overlay .dialog{width:min(100%,460px);max-height:calc(100dvh - 30px)}
 }
 @media(max-width:380px){
+  body{min-width:0}
+  .layout,.page{min-width:0}
   .top{min-height:67px;height:auto;flex-wrap:wrap;gap:8px;padding-top:10px;padding-bottom:10px}
   .top>div:first-child{min-width:0;max-width:100%;flex:1 1 180px}
   .top-actions{min-width:0;max-width:100%;flex:1 1 auto;justify-content:flex-start}
