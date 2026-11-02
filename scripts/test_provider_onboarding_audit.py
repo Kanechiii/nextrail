@@ -143,12 +143,21 @@ class ProviderOnboardingReadinessTests(unittest.TestCase):
 
     def test_missing_local_snapshot_reports_not_submitted(self):
         self.write("manifest.json", {"schema_version": "1.0.0", "batches": []})
+        self.write("reviews.json", {"schema_version": "1.0.0", "reviews": []})
+        self.write("claims.json", {"schema_version": "1.0.0", "claims": []})
         result = self.audit()
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["sources"][0]["status"], "authorized_snapshot_missing")
         self.assertEqual(report["reviewed_course_candidates"], 0)
         self.assertEqual(self.audit("--require-candidates").returncode, 2)
+
+    def test_orphan_review_without_snapshot_rejected_before_readiness(self):
+        self.write("manifest.json", {"schema_version": "1.0.0", "batches": []})
+        response = self.audit()
+        self.assertEqual(response.returncode, 1)
+        self.assertIn("unknown course", response.stderr)
+        self.assertEqual(response.stdout, "")
 
     def test_stale_availability_or_pending_listing_blocks_candidate(self):
         claims = json.loads((self.folder / "claims.json").read_text())
