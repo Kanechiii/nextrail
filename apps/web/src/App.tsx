@@ -43,6 +43,7 @@ const [planErrors,setPlanErrors]=useState<FieldErrors>({}),[planDirty,setPlanDir
 const [pendingSave,setPendingSave]=useState<'pathway'|'guest'|null>(null)
 const [authFieldErrors,setAuthFieldErrors]=useState<{email?:string;password?:string}>({})
 useEffect(()=>setAuthFieldErrors({}),[authMode,authOpen])
+useEffect(()=>{if(authOpen)authOverlay.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus()},[authMode])
 const [accountLoadError,setAccountLoadError]=useState(''),[accountRequest,setAccountRequest]=useState(0),[accountLoading,setAccountLoading]=useState(false)
 const [progressLoading,setProgressLoading]=useState(false),[progressError,setProgressError]=useState(''),[progressRequest,setProgressRequest]=useState(0)
 const [externalProgressPending,setExternalProgressPending]=useState(false)
