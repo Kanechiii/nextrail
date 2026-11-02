@@ -7,6 +7,7 @@ import {suppressRepeatedError} from '../src/feedbackModel.ts'
 
 const read=path=>readFileSync(new URL(path,import.meta.url),'utf8')
 const app=read('../src/App.tsx')
+const mobileLifecycle=read('../src/mobileLifecycle.ts')
 const boundary=read('../src/WorkspaceErrorBoundary.tsx')
 const preferences=read('../src/AccountPreferencesPanel.tsx')
 const css=read('../src/recovery.css')
@@ -63,12 +64,12 @@ test('React error boundaries contain render failures and offer local recovery',(
 })
 
 test('mobile and page lifecycle interruptions preserve draft and session state',()=>{
-  assert.match(app,/addEventListener\('visibilitychange',revalidateOnReturn\)/)
-  assert.match(app,/addEventListener\('pageshow',revalidateOnReturn\)/)
-  assert.match(app,/addEventListener\('online',reconnectHint\)/)
-  assert.match(app,/addEventListener\('offline',offlineHint\)/)
+  assert.match(mobileLifecycle,/addEventListener\('visibilitychange',resume\)/)
+  assert.match(mobileLifecycle,/addEventListener\('pageshow',resume\)/)
+  assert.match(mobileLifecycle,/addEventListener\('online',online\)/)
+  assert.match(mobileLifecycle,/addEventListener\('offline',offline\)/)
   assert.match(app,/if\(token&&!progressUpdatingSkill&&selected\)setProgressRequest/)
-  assert.match(app,/lastResumeCheck\.current<15000/)
+  assert.match(mobileLifecycle,/RESUME_INTERVAL_MS=15000/)
   assert.match(app,/window\.addEventListener\('beforeunload',warn\)/)
   assert.match(app,/planDirty\|\|preferenceDraftDirty\|\|pendingSave!==null/)
   assert.match(app,/setGuestDraft\(snapshot\)/)

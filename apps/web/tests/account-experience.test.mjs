@@ -49,7 +49,7 @@ test('sign-out clears private profile state, guest draft and selected route',()=
   assert.match(app,/setProgress\(null\);setPreferences\(null\);setGuestDraft\(null\)/)
   assert.match(app,/if\(!token\)\{setPreferences\(null\)/)
   assert.match(app,/setToken\(null\);setAccount\(''\);setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\);setProgress\(null\);setPreferences\(null\);setError\('Session ended/)
-  assert.match(app,/setPreferences\(null\);saveRequest\.current=null;setToken\(result\.access_token\)/)
+  assert.match(app,/setPreferences\(null\);saveRequest\.current=null;discardCheckpoint\(accessibleTabStorage\(\)\);setDeviceCheckpoint\(null\);setToken\(result\.access_token\)/)
   assert.match(app,/return\(\)=>\{active=false\}/)
   assert.doesNotMatch(app,/localStorage|sessionStorage/)
   assert.doesNotMatch(panel,/localStorage|sessionStorage/)
