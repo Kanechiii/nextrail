@@ -201,8 +201,37 @@ async function browserSmoke(binary){
     const mobile=await expression("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth,menu:getComputedStyle(document.querySelector('.mobile-menu')).display})")
     assert.ok(mobile.content<=mobile.viewport+2,'Mobile viewport must not overflow horizontally: '+JSON.stringify(mobile))
     assert.notEqual(mobile.menu,'none','Mobile navigation affordance must be visible')
+    await expression("document.querySelector('.mobile-menu').click()")
+    await waitFor("Boolean(document.querySelector('.rail.rail-open'))")
+    await expression("history.back()")
+    await waitFor("!document.querySelector('.rail.rail-open')")
+    console.log('PASS: Mobile menu opens and browser Back dismisses it safely')
+
+    // Only an explicit click may create a session-scoped guest checkpoint.
+    assert.equal(await expression("sessionStorage.getItem('nextrail:guest-draft-opt-in:v1')"),null)
+    await expression("document.querySelector('.mobile-draft-options button').click()")
+    await waitFor("Boolean(document.querySelector('.mobile-draft-banner'))")
+    assert.equal(await expression("Boolean(sessionStorage.getItem('nextrail:guest-draft-opt-in:v1'))"),true)
+    await send('Page.reload',{ignoreCache:true})
+    await waitFor("Boolean(document.querySelector('.mobile-draft-banner'))")
+    await expression("document.querySelector('.mobile-draft-actions button:first-child').click()")
+    await waitFor("Boolean(document.querySelector('.mobile-draft-options'))")
+    assert.equal(await expression("document.querySelector('input[name=career_goal]')?.value"),'Frontend Developer')
+    await expression("document.querySelector('.mobile-draft-discard').click()")
+    await waitFor("!document.querySelector('.mobile-draft-banner')")
+    assert.equal(await expression("sessionStorage.getItem('nextrail:guest-draft-opt-in:v1')"),null)
+    console.log('PASS: Guest checkpoint is opt-in, reloads only on request and can be discarded')
+
+    await send('Emulation.setDeviceMetricsOverride',{
+      width:844,height:390,deviceScaleFactor:1,mobile:true,
+    })
+    await sleep(240)
+    const rotated=await expression("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})")
+    assert.ok(rotated.content<=rotated.viewport+2,
+      'Mobile landscape should not overflow horizontally: '+JSON.stringify(rotated))
+    assert.equal(await expression("document.querySelector('input[name=career_goal]')?.value"),'Frontend Developer')
     await send('Emulation.clearDeviceMetricsOverride')
-    console.log('PASS: Chrome mobile viewport has accessible navigation and no page overflow')
+    console.log('PASS: Mobile portrait/landscape changes preserve plan inputs without overflow')
 
     await expression("document.querySelector('nav button:first-child')?.click()")
     await send('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0})
