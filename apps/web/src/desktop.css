@@ -17,6 +17,14 @@
 .layout[data-theme="light"] .cross-tab-notice p{color:#526b54}
 .layout[data-theme="light"] .cross-tab-notice button{background:#deead5;color:#2b4430;border-color:#afc8a9}
 .layout[data-theme="light"] .cross-tab-notice button:hover:not(:disabled){background:#cbdcbe}
+/* The signed-in header and account email are long, unbreakable strings. */
+.account-bar{min-width:0;flex-wrap:wrap;gap:12px}
+.account-bar>strong{min-width:0;flex:1 1 160px;overflow-wrap:anywhere;word-break:break-word}
+.account-bar>button{flex:none}
+.top-actions{min-width:0;max-width:100%;flex-wrap:wrap;justify-content:flex-end}
+.top-actions .outline{max-width:100%;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.saved-resource-row,.saved-resource-row>div{min-width:0;overflow-wrap:anywhere}
+.saved-resource-row strong{overflow-wrap:anywhere}
 /* Content must wrap when desktop zoom narrows the CSS viewport to ~320 px. */
 .cross-tab-notice,.workspace-recovery,.catalog-error-panel,.preferences-loading{overflow-wrap:anywhere;min-width:0}
 .auth-focus-overlay .dialog{max-height:min(90dvh,800px);overflow-y:auto;overscroll-behavior:contain}
@@ -30,6 +38,10 @@
   .auth-focus-overlay .dialog{width:min(100%,460px);max-height:calc(100dvh - 30px)}
 }
 @media(max-width:380px){
+  .top{min-height:67px;height:auto;flex-wrap:wrap;gap:8px;padding-top:10px;padding-bottom:10px}
+  .top>div:first-child{min-width:0;max-width:100%;flex:1 1 180px}
+  .top-actions{min-width:0;max-width:100%;flex:1 1 auto;justify-content:flex-start}
+  .top-actions .outline{flex:1 1 auto}
   .cross-tab-notice{padding:13px}
   .cross-tab-notice>div{min-width:0}
 }
