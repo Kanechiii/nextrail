@@ -10,6 +10,7 @@ type Props={
   progress?:RouteProgress|null
   onToggle?:(skillId:string,nextStatus:'completed'|'not_started')=>void
   pendingSkill?:string|null
+  syncBlocked?:boolean
   savedSkill?:string|null
 }
 
@@ -21,7 +22,7 @@ export function nextRouteStep(pathway:Pathway,progress?:RouteProgress|null){
   return pathway.milestones.find(m=>lookup.get(m.skill_id)!=='completed')?.skill_id??null
 }
 
-export default function LearningRouteTimeline({pathway,skills,progress,onToggle,pendingSkill,savedSkill}:Props){
+export default function LearningRouteTimeline({pathway,skills,progress,onToggle,pendingSkill,syncBlocked=false,savedSkill}:Props){
   const id=useId()
   const next=nextRouteStep(pathway,progress)
   const [active,setActive]=useState<string|null|false>(null)
@@ -70,10 +71,10 @@ export default function LearningRouteTimeline({pathway,skills,progress,onToggle,
               <span>{prerequisites.length? 'Prerequisites: '+prerequisites.map(s=>knownSkills.get(s)?.name??s).join(', '):'No prerequisite skills'}</span>
               <span>{milestone.resource_ids.length} referenced {milestone.resource_ids.length===1?'resource':'resources'}</span>
             </div>
-            {progress&&onToggle&&<button className="journey-complete-action" type="button" disabled={pendingSkill===milestone.skill_id} aria-busy={pendingSkill===milestone.skill_id}
-              aria-label={(state==='completed'?'Mark incomplete: ':'Mark completed: ')+title}
+            {progress&&onToggle&&<button className="journey-complete-action" type="button" disabled={syncBlocked||Boolean(pendingSkill)} aria-busy={pendingSkill===milestone.skill_id}
+              aria-label={syncBlocked?'Load the latest progress before editing: '+title:(state==='completed'?'Mark incomplete: ':'Mark completed: ')+title}
               onClick={()=>onToggle(milestone.skill_id,state==='completed'?'not_started':'completed')}>
-              {pendingSkill===milestone.skill_id?<><LoaderCircle size={15} className="feedback-busy-icon" aria-hidden="true"/>Updating…</>:savedSkill===milestone.skill_id?<><CheckCircle2 size={15} aria-hidden="true"/>Updated</>:state==='completed'?'Mark as not started':'Mark completed'}
+              {syncBlocked?'Refresh progress first':pendingSkill===milestone.skill_id?<><LoaderCircle size={15} className="feedback-busy-icon" aria-hidden="true"/>Updating…</>:savedSkill===milestone.skill_id?<><CheckCircle2 size={15} aria-hidden="true"/>Updated</>:state==='completed'?'Mark as not started':'Mark completed'}
             </button>}
           </div>}
         </li>
