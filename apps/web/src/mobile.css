@@ -1,0 +1,83 @@
+/* Mobile lifecycle, opt-in guest recovery and touch-safe workspace affordances. */
+.mobile-draft-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  border:1px solid #6c8b70;background:#23392b;border-radius:12px;
+  color:#e5f0df;padding:16px 20px;margin:0 0 22px;
+}
+.mobile-draft-banner strong{font-size:clamp(.9rem,2vw,1rem)}
+.mobile-draft-banner p{font-size:.82rem;line-height:1.65;color:#b4cdb6;margin:5px 0 0}
+.mobile-draft-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.mobile-draft-actions button,.mobile-draft-options button{
+  display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+  padding:10px 15px;border:1px solid #a2c9a1;background:#38563d;
+  border-radius:9px;color:#edf4e7;font-size:.83rem;font-weight:650;
+}
+.mobile-draft-actions .mobile-draft-discard{background:transparent;border-color:#7f957f}
+.mobile-draft-options{margin:16px 0 10px;padding:14px 0 0;border-top:1px solid #445d46}
+.mobile-draft-options button{width:100%;background:transparent}
+.mobile-draft-options p{font-size:.8rem;line-height:1.65;color:#a9c3aa}
+.mobile-draft-options button:focus-visible,.mobile-draft-actions button:focus-visible{
+  outline:3px solid #e0ecad;outline-offset:2px
+}
+.layout[data-theme="light"] .mobile-draft-banner{
+  background:#eef6eb;color:#324937;border-color:#b7ceb6
+}
+.layout[data-theme="light"] .mobile-draft-banner p,
+.layout[data-theme="light"] .mobile-draft-options p{color:#526a54}
+.layout[data-theme="light"] .mobile-draft-actions button,
+.layout[data-theme="light"] .mobile-draft-options button{
+  color:#28462e;background:#d9ead5;border-color:#aac8a7
+}
+.layout[data-theme="light"] .mobile-draft-discard{background:transparent!important}
+
+/* Suppress accidental double-tap zoom on controls; pinch zoom remains available. */
+@media(pointer:coarse){
+  :where(button,a,input,select,textarea){touch-action:manipulation}
+  .choice{min-height:46px;gap:12px}
+  .choice input[type=checkbox]{width:21px;height:21px;flex:none}
+  .card-detail-trigger,.card-compare,.course-dialog-close,.feedback-toast-close,
+  .journey-complete-action,.progress-row button{min-width:44px;min-height:44px}
+  .card-tools button{min-height:44px}
+  .feedback-toast-close{min-width:44px;min-height:44px;flex:none}
+}
+@media(max-width:760px){
+  .rail{height:100dvh;overflow-y:auto;visibility:hidden;
+    padding-top:max(30px,env(safe-area-inset-top,0px));
+    padding-bottom:max(24px,env(safe-area-inset-bottom,0px))}
+  .rail-open{visibility:visible}
+  .mobile-menu{min-height:44px;min-width:44px;touch-action:manipulation;
+    display:inline-grid;place-items:center;margin-right:8px;border-radius:9px}
+  .top{min-height:calc(67px + env(safe-area-inset-top,0px));height:auto;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-left:max(16px,env(safe-area-inset-left,0px));
+    padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .top-actions button{min-height:44px}
+  .overlay{place-items:safe center;overflow-y:auto;
+    padding-top:max(16px,env(safe-area-inset-top,0px));
+    padding-bottom:max(20px,env(safe-area-inset-bottom,0px))}
+  .dialog{max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) -
+      env(safe-area-inset-bottom,0px));overflow-y:auto;scroll-padding-bottom:25vh}
+  .dialog .close{min-height:44px;min-width:44px;display:grid;place-items:center}
+  .course-dialog{max-height:calc(100dvh - 28px - env(safe-area-inset-top,0px) -
+      env(safe-area-inset-bottom,0px));overflow-y:auto}
+  .filters input,.filters select,.field input:not([type=range]),.dialog input,
+  .account-preferences-form input,.account-preferences-form select{font-size:16px}
+  main{padding-bottom:max(58px,calc(35px + env(safe-area-inset-bottom,0px)))}
+  .feedback-toast-region{top:max(80px,calc(68px + env(safe-area-inset-top,0px)));
+    right:max(12px,env(safe-area-inset-right,0px));
+    left:max(12px,env(safe-area-inset-left,0px));width:auto;max-height:45dvh}
+  .mobile-draft-banner{align-items:stretch}
+  .mobile-draft-actions{width:100%}
+  .mobile-draft-actions button{flex:1;min-width:130px}
+  .account-preferences-form :where(input,select,textarea):focus,
+  .dialog :where(input,select,textarea):focus{scroll-margin-block-end:35vh}
+}
+@media(max-width:380px){
+  .mobile-draft-actions{flex-direction:column;align-items:stretch}
+  .mobile-draft-actions button{width:100%}
+  .top-actions{gap:7px!important}
+  .mobile-menu{margin-right:2px}
+}
+@media(prefers-reduced-motion:reduce),(update:slow){
+  .rail,.card,.mobile-draft-banner,.mobile-draft-options *{animation:none!important;transition:none!important}
+}
