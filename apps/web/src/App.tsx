@@ -75,7 +75,29 @@ useEffect(()=>{catalogAbort.current?.abort();if(previewExamples){setCourseLoadin
 useEffect(()=>{if(!token){setAccountLoadError('');setAccountLoading(false);return}let active=true;setAccountLoadError('');setAccountLoading(true);Promise.all([call<{email:string}>('/v1/me','GET',undefined,token),call<{items:Saved[]}>('/v1/me/pathways','GET',undefined,token),call<{resource_ids:string[]}>('/v1/me/courses','GET',undefined,token)]).then(([a,p,c])=>{if(active){setAccount(a.email);setSaved(p.items);setBookmarks(c.resource_ids);setSelected(s=>s||p.items[0]?.id||'');setAccountLoadError('')}}).catch(reason=>{if(active){if(isAuthFailure(reason)){setToken(null);setAccount('');setSaved([]);setBookmarks([]);setSelected('');setProgress(null);setPreferences(null);setError('Session ended. Sign in again.');pushToast('error','Session ended. Sign in again.')}else{markConnectionFailure(reason);setAccountLoadError('Account data is temporarily unavailable. Retry loading without signing out.')}}}).finally(()=>{if(active)setAccountLoading(false)});return()=>{active=false}},[token,accountRequest,pushToast])
 useEffect(()=>{if(!token){setPreferences(null);setPreferencesProblem('');setPreferencesLoading(false);return}let active=true;setPreferences(null);setPreferencesProblem('');setPreferencesLoading(true);call<LearningPreferences>('/v1/me/preferences','GET',undefined,token).then(data=>{if(active)setPreferences(data)}).catch(reason=>{if(active){markConnectionFailure(reason);setPreferencesProblem('Could not load learning preferences. Please retry.')}}).finally(()=>{if(active)setPreferencesLoading(false)});return()=>{active=false}},[token,preferencesRequest])
 useEffect(()=>{if(!token||!selected){setProgress(null);setProgressError('');setProgressLoading(false);return}setProgress(null);setProgressError('');setProgressLoading(true);let alive=true;call<Progress>('/v1/me/pathways/'+encodeURIComponent(selected)+'/progress','GET',undefined,token).then(p=>{if(alive){setProgress(p);setProgressError('')}}).catch(reason=>{if(alive){markConnectionFailure(reason);setProgressError(reason instanceof Error?reason.message:'Unable to load progress.')}}).finally(()=>{if(alive)setProgressLoading(false)});return()=>{alive=false}},[token,selected,progressRequest])
-async function retryConnection(){if(connectionChecking)return;setConnectionChecking(true);try{await call('/ready','GET',undefined,undefined,{timeoutMs:5000});const available=await call<{items:Skill[]}>('/v1/skills','GET',undefined,undefined,{timeoutMs:5000});setSkills(available.items);setSkillsLoading(false);setOnline(true);setConnectionProblem(null);setCatalogRequest(n=>n+1)}catch(reason){markConnectionFailure(reason);pushToast('error','The backend is still unavailable. Check the local API and retry.')}finally{setConnectionChecking(false)}}
+async function verifyConnection(manual:boolean){
+  if(connectionAttempt.current)return
+  const controller=new AbortController()
+  connectionAttempt.current=controller
+  setConnectionChecking(true)
+  try{
+    await call('/ready','GET',undefined,undefined,{timeoutMs:5000,signal:controller.signal})
+    const available=await call<{items:Skill[]}>('/v1/skills','GET',undefined,undefined,{
+      timeoutMs:5000,signal:controller.signal,
+    })
+    if(controller.signal.aborted)return
+    setSkills(available.items);setSkillsLoading(false);setOnline(true)
+    setConnectionProblem(null);setCatalogRequest(n=>n+1)
+  }catch(reason){
+    if(isRequestCancelled(reason))return
+    markConnectionFailure(reason)
+    if(manual)pushToast('error','The backend is still unavailable. Check the local API and retry.')
+  }finally{
+    if(connectionAttempt.current===controller)connectionAttempt.current=null
+    setConnectionChecking(false)
+  }
+}
+async function retryConnection(){await verifyConnection(true)}
 function openMobileMenu(){
   if(mobileMenuMarker.current)return
   const marker=crypto.randomUUID()
@@ -132,27 +154,19 @@ useEffect(()=>{
     window.removeEventListener('resize',onWideScreen)
   }
 },[])
-useEffect(()=>{
-  function reconnectHint(){setConnectionProblem(current=>current??'offline')}
-  function offlineHint(){setConnectionProblem('offline');setOnline(false)}
-  function revalidateOnReturn(){
-    if(document.visibilityState!=='visible')return
-    if(Date.now()-lastResumeCheck.current<15000)return
-    lastResumeCheck.current=Date.now()
-    // Only perform safe GETs; never resubmit a pending pathway or milestone.
+useMobileLifecycle({
+  onResume:()=>{
+    // Re-read confirmed account progress, never repeat guest generation or writes.
     if(token&&!progressUpdatingSkill&&selected)setProgressRequest(n=>n+1)
-  }
-  window.addEventListener('online',reconnectHint)
-  window.addEventListener('offline',offlineHint)
-  document.addEventListener('visibilitychange',revalidateOnReturn)
-  window.addEventListener('pageshow',revalidateOnReturn)
-  return()=>{
-    window.removeEventListener('online',reconnectHint)
-    window.removeEventListener('offline',offlineHint)
-    document.removeEventListener('visibilitychange',revalidateOnReturn)
-    window.removeEventListener('pageshow',revalidateOnReturn)
-  }
-},[token,selected,progressUpdatingSkill])
+    if(connectionProblem)void verifyConnection(false)
+  },
+  onOffline:()=>{
+    connectionAttempt.current?.abort()
+    setConnectionProblem('offline');setOnline(false)
+  },
+  onOnline:()=>{void verifyConnection(false)},
+})
+useEffect(()=>()=>{connectionAttempt.current?.abort()},[])
 useEffect(()=>{
   const dirty=planDirty||preferenceDraftDirty||pendingSave!==null
   if(!dirty)return
