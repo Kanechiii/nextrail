@@ -56,7 +56,7 @@ test('loading state is tied to real account, progress, preferences, skills and g
 
 test('saved actions display pending state and notify only after confirmed success',()=>{
   assert.ok(app.includes("setSavingCourseId(id)"))
-  assert.ok(app.includes("finally{setSavingCourseId(null)}"))
+  assert.ok(app.includes("finally{setSavingCourseId(null);releaseAction('bookmark:'+id)}"))
   assert.ok(app.includes("savingCourseId===c.id"))
   assert.ok(app.includes("notify('Course saved.')"))
   assert.ok(app.includes("setProgressUpdatingSkill(skillId)"))
