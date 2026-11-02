@@ -1,0 +1,43 @@
+/* Desktop tab-state recovery, accessible dialogs and zoom-friendly layouts. */
+.cross-tab-notice{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  gap:16px;margin:15px 0;padding:17px 18px;border:1px solid #a6bb85;
+  border-radius:11px;background:#293b29;color:#eef2dd;
+}
+.cross-tab-notice>div{flex:1;min-width:min(100%,210px)}
+.cross-tab-notice strong{font-size:clamp(.9rem,1.6vw,1rem);line-height:1.5}
+.cross-tab-notice p{margin:7px 0 0;line-height:1.65;font-size:.85rem;color:#cedac1}
+.cross-tab-notice button{
+  min-height:44px;max-width:100%;padding:9px 15px;border:1px solid #b4d29e;
+  background:#3a5339;color:#f4f6ee;border-radius:8px;font-weight:650;
+}
+.cross-tab-notice button:hover:not(:disabled){background:#4c6445}
+.cross-tab-notice button:focus-visible{outline:3px solid #e6edb8;outline-offset:3px}
+.layout[data-theme="light"] .cross-tab-notice{background:#f3f7ed;color:#304b31;border-color:#a7c19a}
+.layout[data-theme="light"] .cross-tab-notice p{color:#526b54}
+.layout[data-theme="light"] .cross-tab-notice button{background:#deead5;color:#2b4430;border-color:#afc8a9}
+.layout[data-theme="light"] .cross-tab-notice button:hover:not(:disabled){background:#cbdcbe}
+/* Content must wrap when desktop zoom narrows the CSS viewport to ~320 px. */
+.cross-tab-notice,.workspace-recovery,.catalog-error-panel,.preferences-loading{overflow-wrap:anywhere;min-width:0}
+.auth-focus-overlay .dialog{max-height:min(90dvh,800px);overflow-y:auto;overscroll-behavior:contain}
+.auth-focus-overlay .dialog:focus-visible{outline:3px solid #d2eca5;outline-offset:-5px}
+.auth-focus-overlay .dialog input:focus-visible,
+.auth-focus-overlay .dialog button:focus-visible{outline:3px solid #c9e8a9;outline-offset:2px}
+@media(max-width:760px){
+  .cross-tab-notice{align-items:stretch;flex-direction:column}
+  .cross-tab-notice button{width:100%}
+  .auth-focus-overlay{overflow-y:auto;align-items:safe center}
+  .auth-focus-overlay .dialog{width:min(100%,460px);max-height:calc(100dvh - 30px)}
+}
+@media(max-width:380px){
+  .cross-tab-notice{padding:13px}
+  .cross-tab-notice>div{min-width:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .cross-tab-notice,.cross-tab-notice *,.auth-focus-overlay *{transition:none!important;animation:none!important}
+}
+@media(forced-colors:active){
+  .cross-tab-notice,.cross-tab-notice button{border:2px solid CanvasText;background:Canvas;color:CanvasText}
+  .cross-tab-notice p{color:CanvasText}
+  .cross-tab-notice button:focus-visible{outline-color:Highlight}
+}
