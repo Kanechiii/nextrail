@@ -117,7 +117,7 @@ async function browserSmoke(binary){
     }
     async function expression(src){
       const result=await send('Runtime.evaluate',{expression:src,returnByValue:true,awaitPromise:true})
-      if(result.exceptionDetails)throw Error('Browser JS: '+result.exceptionDetails.text)
+      if(result.exceptionDetails)throw Error('Browser JS: '+(result.exceptionDetails.exception?.description??result.exceptionDetails.text))
       return result.result?.value
     }
     async function waitFor(js,timeout=8000){
@@ -212,8 +212,9 @@ async function browserSmoke(binary){
     await expression("document.querySelector('.mobile-draft-options button').click()")
     await waitFor("Boolean(document.querySelector('.mobile-draft-banner'))")
     assert.equal(await expression("Boolean(sessionStorage.getItem('nextrail:guest-draft-opt-in:v1'))"),true)
+    await expression("window.__nextrailReloadMarker='old-document'")
     await send('Page.reload',{ignoreCache:true})
-    await waitFor("Boolean(document.querySelector('.mobile-draft-banner'))")
+    await waitFor("window.__nextrailReloadMarker===undefined && document.readyState==='complete' && Boolean(document.querySelector('.mobile-draft-actions button:first-child'))",12000)
     await expression("document.querySelector('.mobile-draft-actions button:first-child').click()")
     await waitFor("Boolean(document.querySelector('.mobile-draft-options'))")
     assert.equal(await expression("document.querySelector('input[name=career_goal]')?.value"),'Frontend Developer')
