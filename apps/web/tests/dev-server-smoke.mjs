@@ -287,7 +287,7 @@ async function browserSmoke(binary){
     await send('Input.insertText',{text:fixtureEmail})
     await expression("document.querySelector('.auth-focus-overlay input[name=password]').focus()")
     await send('Input.insertText',{text:fixturePassword})
-    await expression("document.querySelector('.auth-focus-overlay button[type=submit]').click()")
+    await expression("document.querySelector('.auth-focus-overlay form button.primary').click()")
     await waitFor("!document.querySelector('.auth-focus-overlay')",12000)
     await expression("document.querySelector('nav button:nth-child(3)').click()")
     await waitFor("Boolean(document.querySelector('select[aria-label=\\\"Choose saved pathway\\\"]'))",12000)
