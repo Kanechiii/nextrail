@@ -317,8 +317,10 @@ async function browserSmoke(binary){
     })
     await sleep(300)
     const narrow=await expression("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})")
-    assert.ok(narrow.content<=narrow.viewport+2,
-      'Desktop narrow viewport should avoid horizontal page overflow: '+JSON.stringify(narrow))
+    if(narrow.content>narrow.viewport+2){
+      const offenders=await expression("Array.from(document.body.querySelectorAll('*')).map(el=>({tag:el.tagName,cls:typeof el.className==='string'?el.className.slice(0,100):'',right:Math.round(el.getBoundingClientRect().right),width:Math.round(el.getBoundingClientRect().width)})).filter(x=>x.right>document.documentElement.clientWidth+5).sort((a,b)=>b.right-a.right).slice(0,12)")
+      throw new Error('Desktop narrow viewport overflow: '+JSON.stringify({narrow,offenders}))
+    }
     await send('Emulation.clearDeviceMetricsOverride')
     await expression("window.__testProgressChannel.close()")
     console.log('PASS: Narrow desktop viewport keeps saved learning controls accessible')
