@@ -63,7 +63,7 @@ test('saved actions display pending state and notify only after confirmed succes
   assert.ok(app.includes("setProgressError('');celebrate('progress:'+skillId);notify('Learning milestone updated.')"))
   assert.ok(app.includes("Progress changed but could not be confirmed."))
   assert.ok(timeline.includes('aria-busy={pendingSkill===milestone.skill_id}'))
-  assert.ok(timeline.includes('disabled={pendingSkill===milestone.skill_id}'))
+  assert.ok(timeline.includes('disabled={syncBlocked||Boolean(pendingSkill)}'))
   assert.ok(preferences.includes("Saving…"))
   assert.ok(app.includes("Saving pathway…"))
   assert.ok(app.includes("Generating pathway…"))
