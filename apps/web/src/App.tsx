@@ -15,6 +15,7 @@ import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
 import {validatePathwayDraft,type FieldErrors} from './fieldValidation'
 import {useMobileLifecycle,useVisibleMobileInput} from './mobileLifecycle'
 import {accessibleTabStorage,readCheckpoint,writeCheckpoint,discardCheckpoint} from './mobileDraft'
+import {ActionGate} from './interactionGuard'
 type View='discover'|'pathway'|'learning'
 type Saved={id:string;pathway:Pathway;created_at:string}
 type Progress={completed:number;total:number;revision:string;milestones:{skill_id:string;status:string}[]}
@@ -48,9 +49,9 @@ const dialogAnchor=useRef<HTMLElement|null>(null)
 const dialogMarker=useRef<string|null>(null)
 const mobileMenuMarker=useRef<string|null>(null)
 const connectionAttempt=useRef<AbortController|null>(null)
-const actionLocks=useRef(new Set<string>())
-const acquireAction=(key:string)=>{if(actionLocks.current.has(key))return false;actionLocks.current.add(key);return true}
-const releaseAction=(key:string)=>{actionLocks.current.delete(key)}
+const actionLocks=useRef(new ActionGate())
+const acquireAction=(key:string)=>actionLocks.current.acquire(key)
+const releaseAction=(key:string)=>actionLocks.current.release(key)
 
 const {toasts,push:pushToast,dismiss:dismissToast,clear:clearToasts}=useFeedbackToasts()
 const {successKey,celebrate,reset:resetSuccess}=useActionSuccess()
@@ -93,8 +94,10 @@ async function verifyConnection(manual:boolean){
     markConnectionFailure(reason)
     if(manual)pushToast('error','The backend is still unavailable. Check the local API and retry.')
   }finally{
-    if(connectionAttempt.current===controller)connectionAttempt.current=null
-    setConnectionChecking(false)
+    if(connectionAttempt.current===controller){
+      connectionAttempt.current=null
+      setConnectionChecking(false)
+    }
   }
 }
 async function retryConnection(){await verifyConnection(true)}
@@ -159,9 +162,13 @@ useMobileLifecycle({
     // Re-read confirmed account progress, never repeat guest generation or writes.
     if(token&&!progressUpdatingSkill&&selected)setProgressRequest(n=>n+1)
     if(connectionProblem)void verifyConnection(false)
+    if(deviceCheckpoint&&!readCheckpoint(accessibleTabStorage()))setDeviceCheckpoint(null)
   },
   onOffline:()=>{
-    connectionAttempt.current?.abort()
+    const interrupted=connectionAttempt.current
+    connectionAttempt.current=null
+    interrupted?.abort()
+    setConnectionChecking(false)
     setConnectionProblem('offline');setOnline(false)
   },
   onOnline:()=>{void verifyConnection(false)},
