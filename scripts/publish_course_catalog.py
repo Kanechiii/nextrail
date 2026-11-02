@@ -58,9 +58,16 @@ def read_authorization_json(path):
 def input_from_manifest(parent, name, *, suffix):
     if not isinstance(name, str) or not name or Path(name).is_absolute():
         raise PublicationError("Manifest paths must be relative to their directory")
-    path = (parent / name).resolve(strict=False)
+    # Resolve only after checking every user-supplied path component for
+    # symlinks; otherwise pathlib.resolve() would silently hide the symlink.
+    location = parent
+    for segment in Path(name).parts:
+        location = location / segment
+        if location.is_symlink():
+            raise PublicationError("Symlinked manifest input is prohibited")
+    path = location.resolve(strict=False)
     if (not path.is_relative_to(parent.resolve()) or path.suffix != suffix
-            or not path.is_file() or path.is_symlink()):
+            or not path.is_file()):
         raise PublicationError("Unsafe or missing manifest input path")
     return path
 
