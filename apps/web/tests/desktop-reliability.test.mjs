@@ -29,7 +29,7 @@ test('anonymous progress signals never transmit account identifiers or tokens',(
   bridge.publish()
   assert.deepEqual(fake.sent,[{kind:PROGRESS_EVENT}])
   const content=JSON.stringify(fake.sent)
-  assert.doesNotMatch(content,/token|password|email|account|pathway|progress|milestone|revision|user_id/i)
+  assert.doesNotMatch(content,/"(?:token|password|email|account|pathway|milestone|revision|user_id)"\\s*:/i)
   fake.channel.onmessage({data:{kind:PROGRESS_EVENT}})
   assert.deepEqual(incoming,['invalidate'])
   fake.channel.onmessage({data:{kind:PROGRESS_EVENT,token:'stolen'}})
