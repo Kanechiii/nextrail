@@ -244,6 +244,84 @@ async function browserSmoke(binary){
     await expression("document.querySelector('.reconnection-banner button')?.click()")
     await waitFor("!document.querySelector('.reconnection-banner')",12000)
     console.log('PASS: Offline banner offers manual reconnect and clears on recovery')
+
+    // Optional account overlay must trap Tab, handle Escape and restore the opener.
+    await expression("document.querySelector('.top-actions button.outline').focus();document.querySelector('.top-actions button.outline').click()")
+    await waitFor("Boolean(document.querySelector('.auth-focus-overlay'))")
+    await waitFor("document.activeElement?.getAttribute('name')==='email'")
+    await expression("document.querySelector('.auth-switch button:last-child').focus();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}))")
+    assert.equal(await expression("document.activeElement?.classList.contains('close')"),true,
+      'Tab should wrap from last action to modal close')
+    await expression("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}))")
+    assert.equal(await expression("document.activeElement?.textContent?.includes('Forgot password')"),true,
+      'Shift+Tab should wrap to the last dialog control')
+    await expression("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))")
+    await waitFor("!document.querySelector('.auth-focus-overlay')")
+    await waitFor("document.activeElement?.classList.contains('outline')===true")
+    console.log('PASS: Desktop account dialog traps Tab, closes on Escape, restores opener')
+
+    // Two separate clients share the local server. No token or progress data is
+    // transferred through BroadcastChannel: only an invalidation signal.
+    const fixtureEmail='desktop-'+crypto.randomUUID()+'@example.org'
+    const fixturePassword='synthetic-qa-password-1234'
+    const postJson=async(path,body,headers={})=>fetch(base+'/api'+path,{
+      method:'POST',headers:{'Content-Type':'application/json',...headers},
+      body:JSON.stringify(body),
+    })
+    const registered=await postJson('/v1/auth/register',{email:fixtureEmail,password:fixturePassword})
+    assert.equal(registered.status,201,'Disposable localhost account registration')
+    const logged=await postJson('/v1/auth/login',{email:fixtureEmail,password:fixturePassword})
+    assert.equal(logged.status,200,'Disposable localhost account login')
+    const bearer=(await logged.json()).access_token
+    const headers={Authorization:'Bearer '+bearer}
+    const saved=await postJson('/v1/me/pathways',{
+      career_goal:'Frontend developer',target_skill_ids:['css'],known_skill_ids:[],
+      weekly_hours:6,zero_budget:true,
+    },headers)
+    assert.equal(saved.status,201,'Disposable account pathway creation')
+    const savedPath=(await saved.json()).id
+
+    await expression("document.querySelector('.top-actions button.outline').click()")
+    await waitFor("Boolean(document.querySelector('.auth-focus-overlay input[name=email]'))")
+    await expression("document.querySelector('.auth-focus-overlay input[name=email]').focus()")
+    await send('Input.insertText',{text:fixtureEmail})
+    await expression("document.querySelector('.auth-focus-overlay input[name=password]').focus()")
+    await send('Input.insertText',{text:fixturePassword})
+    await expression("document.querySelector('.auth-focus-overlay button[type=submit]').click()")
+    await waitFor("!document.querySelector('.auth-focus-overlay')",12000)
+    await expression("document.querySelector('nav button:nth-child(3)').click()")
+    await waitFor("Boolean(document.querySelector('select[aria-label=\\\"Choose saved pathway\\\"]'))",12000)
+    await waitFor("Boolean(document.querySelector('.journey-complete-action'))",12000)
+
+    const progressUrl=base+'/api/v1/me/pathways/'+encodeURIComponent(savedPath)+'/progress'
+    const initial=await (await fetch(progressUrl,{headers})).json()
+    const remote=await fetch(progressUrl+'/html',{
+      method:'PUT',headers:{...headers,'Content-Type':'application/json','If-Match':'"'+initial.revision+'"'},
+      body:JSON.stringify({status:'completed'}),
+    })
+    assert.equal(remote.status,200,'Other client commits a progress revision')
+    await expression("window.__testProgressChannel=new BroadcastChannel('nextrail:progress-invalidation:v1');window.__testProgressChannel.postMessage({kind:'confirmed-progress-updated'})")
+    await waitFor("Boolean(document.querySelector('.cross-tab-notice'))")
+    assert.equal(await expression("document.querySelector('.journey-complete-action')?.disabled"),true,
+      'Editing must be blocked when another tab has newer progress')
+    await expression("document.querySelector('.cross-tab-notice button').click()")
+    await waitFor("!document.querySelector('.cross-tab-notice')",12000)
+    await waitFor("document.querySelector('.journey-progress strong')?.textContent?.includes('1 of')",12000)
+    assert.equal(await expression("document.querySelector('.journey-complete-action')?.disabled"),false)
+    console.log('PASS: External progress invalidation blocks stale edits until confirmed refresh')
+
+    // 320 CSS pixel viewport approximates 400% zoom on a 1280px desktop.
+    // Actual browser zoom, high contrast and screen readers remain manual gates.
+    await send('Emulation.setDeviceMetricsOverride',{
+      width:320,height:720,deviceScaleFactor:1,mobile:false,
+    })
+    await sleep(300)
+    const narrow=await expression("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})")
+    assert.ok(narrow.content<=narrow.viewport+2,
+      'Desktop narrow viewport should avoid horizontal page overflow: '+JSON.stringify(narrow))
+    await send('Emulation.clearDeviceMetricsOverride')
+    await expression("window.__testProgressChannel.close()")
+    console.log('PASS: Narrow desktop viewport keeps saved learning controls accessible')
     socket.close()
   }finally{await rm(profile,{recursive:true,force:true}).catch(()=>{})}
 }
