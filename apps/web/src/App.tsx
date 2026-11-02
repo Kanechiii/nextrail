@@ -13,6 +13,8 @@ import {FeedbackToasts,useFeedbackToasts} from './FeedbackToasts'
 import {useDebouncedValue,useDelayedPending,useActionSuccess} from './useFeedbackTiming'
 import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
 import {validatePathwayDraft,type FieldErrors} from './fieldValidation'
+import {useMobileLifecycle,useVisibleMobileInput} from './mobileLifecycle'
+import {accessibleTabStorage,readCheckpoint,writeCheckpoint,discardCheckpoint} from './mobileDraft'
 type View='discover'|'pathway'|'learning'
 type Saved={id:string;pathway:Pathway;created_at:string}
 type Progress={completed:number;total:number;revision:string;milestones:{skill_id:string;status:string}[]}
@@ -33,6 +35,7 @@ const [token,setToken]=useState<string|null>(null),[account,setAccount]=useState
 const [saved,setSaved]=useState<Saved[]>([]),[selected,setSelected]=useState(''),[progress,setProgress]=useState<Progress|null>(null),[bookmarks,setBookmarks]=useState<string[]>([])
 const [preferences,setPreferences]=useState<LearningPreferences|null>(null),[preferencesBusy,setPreferencesBusy]=useState(false),[preferencesLoading,setPreferencesLoading]=useState(false),[preferencesProblem,setPreferencesProblem]=useState(''),[preferencesRequest,setPreferencesRequest]=useState(0)
 const [guestDraft,setGuestDraft]=useState<Plan|null>(null)
+const [deviceCheckpoint,setDeviceCheckpoint]=useState<Plan|null>(()=>readCheckpoint(accessibleTabStorage()))
 const [planErrors,setPlanErrors]=useState<FieldErrors>({}),[planDirty,setPlanDirty]=useState(false),[preferenceDraftDirty,setPreferenceDraftDirty]=useState(false)
 const [pendingSave,setPendingSave]=useState<'pathway'|'guest'|null>(null)
 const [authFieldErrors,setAuthFieldErrors]=useState<{email?:string;password?:string}>({})
@@ -43,7 +46,11 @@ const saveRequest=useRef<{signature:string;token:string;key:string}|null>(null)
 const catalogAbort=useRef<AbortController|null>(null)
 const dialogAnchor=useRef<HTMLElement|null>(null)
 const dialogMarker=useRef<string|null>(null)
-const lastResumeCheck=useRef(0)
+const mobileMenuMarker=useRef<string|null>(null)
+const connectionAttempt=useRef<AbortController|null>(null)
+const actionLocks=useRef(new Set<string>())
+const acquireAction=(key:string)=>{if(actionLocks.current.has(key))return false;actionLocks.current.add(key);return true}
+const releaseAction=(key:string)=>{actionLocks.current.delete(key)}
 
 const {toasts,push:pushToast,dismiss:dismissToast,clear:clearToasts}=useFeedbackToasts()
 const {successKey,celebrate,reset:resetSuccess}=useActionSuccess()
@@ -57,6 +64,7 @@ const preferencesSkeletonVisible=useDelayedPending(preferencesLoading)
 const progressSkeletonVisible=useDelayedPending(progressLoading)
 const skillsSkeletonVisible=useDelayedPending(skillsLoading)
 const workspaceRoot=useRef<HTMLDivElement>(null)
+useVisibleMobileInput()
 useWorkspaceMotion(workspaceRoot,view,previewExamples,pathway?.milestones.length??0,progress?.completed??0)
 const notify=(message:string)=>{pushToast('success',message);setError('')}
 const markConnectionFailure=(reason:unknown)=>{if(isConnectionFailure(reason)){setConnectionProblem(['SERVICE_UNAVAILABLE','SERVER_ERROR'].includes((reason as ApiError).code)?'degraded':'offline');setOnline(false)}}
