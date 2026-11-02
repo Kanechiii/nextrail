@@ -16,6 +16,8 @@ import {validatePathwayDraft,type FieldErrors} from './fieldValidation'
 import {useMobileLifecycle,useVisibleMobileInput} from './mobileLifecycle'
 import {accessibleTabStorage,readCheckpoint,writeCheckpoint,discardCheckpoint} from './mobileDraft'
 import {ActionGate} from './interactionGuard'
+import {useCrossTabProgress} from './useCrossTabProgress'
+import {useAuthFocus} from './useAuthFocus'
 type View='discover'|'pathway'|'learning'
 type Saved={id:string;pathway:Pathway;created_at:string}
 type Progress={completed:number;total:number;revision:string;milestones:{skill_id:string;status:string}[]}
@@ -43,17 +45,29 @@ const [authFieldErrors,setAuthFieldErrors]=useState<{email?:string;password?:str
 useEffect(()=>setAuthFieldErrors({}),[authMode,authOpen])
 const [accountLoadError,setAccountLoadError]=useState(''),[accountRequest,setAccountRequest]=useState(0),[accountLoading,setAccountLoading]=useState(false)
 const [progressLoading,setProgressLoading]=useState(false),[progressError,setProgressError]=useState(''),[progressRequest,setProgressRequest]=useState(0)
+const [externalProgressPending,setExternalProgressPending]=useState(false)
 const saveRequest=useRef<{signature:string;token:string;key:string}|null>(null)
 const catalogAbort=useRef<AbortController|null>(null)
 const dialogAnchor=useRef<HTMLElement|null>(null)
 const dialogMarker=useRef<string|null>(null)
 const mobileMenuMarker=useRef<string|null>(null)
 const connectionAttempt=useRef<AbortController|null>(null)
+const externalRevisionEpoch=useRef(0)
+const externalRevisionPending=useRef(false)
+const authOpener=useRef<HTMLElement|null>(null)
+const authOverlay=useRef<HTMLDivElement>(null)
 const actionLocks=useRef(new ActionGate())
 const acquireAction=(key:string)=>actionLocks.current.acquire(key)
 const releaseAction=(key:string)=>actionLocks.current.release(key)
 
 const {toasts,push:pushToast,dismiss:dismissToast,clear:clearToasts}=useFeedbackToasts()
+const announceProgress=useCrossTabProgress(()=>{
+  if(!token||!selected)return
+  externalRevisionEpoch.current++
+  externalRevisionPending.current=true
+  setExternalProgressPending(true)
+})
+useAuthFocus({open:authOpen,container:authOverlay,onClose:()=>setAuthOpen(false),opener:authOpener})
 const {successKey,celebrate,reset:resetSuccess}=useActionSuccess()
 const debouncedQuery=useDebouncedValue(query)
 const searchSettling=query!==debouncedQuery
