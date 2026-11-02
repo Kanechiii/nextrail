@@ -15,45 +15,59 @@ MAX_JSON_BYTES = 2_000_000
 MAX_FEED_BYTES = 100_000
 
 
+def _unique_properties(pairs):
+    """Reject ambiguous nested JSON objects rather than trusting last-key wins."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise PublicationError("Duplicate local JSON property")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value):
+    raise PublicationError("Non-finite local JSON number is prohibited")
+
+
 def read_json(path, *, size_limit=MAX_JSON_BYTES):
+    """Read at most the configured bytes; prohibit symlinks and duplicate keys."""
     source = Path(path)
-    if not source.is_file() or source.stat().st_size > size_limit:
-        raise PublicationError("Missing or oversized local JSON input")
+    if source.is_symlink() or not source.is_file() or source.suffix.lower() != ".json":
+        raise PublicationError("Local JSON must be an existing regular .json file")
     try:
-        return json.loads(source.read_text(encoding="utf-8-sig"))
-    except (UnicodeError, ValueError) as exc:
-        raise PublicationError("Malformed local JSON input") from exc
+        with source.open("rb") as handle:
+            raw = handle.read(size_limit + 1)
+        if len(raw) > size_limit:
+            raise PublicationError("Local JSON input exceeds size limit")
+        return json.loads(
+            raw.decode("utf-8-sig"),
+            object_pairs_hook=_unique_properties,
+            parse_constant=_reject_constant,
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        if isinstance(exc, PublicationError):
+            raise
+        raise PublicationError("Invalid local JSON input") from exc
 
 
 def read_authorization_json(path):
-    """Bounded duplicate-safe authorization document; no symlinked inputs."""
-    source = Path(path)
-    if source.is_symlink() or not source.is_file():
-        raise PublicationError("Authorization input must be an existing regular file")
-
-    def unique(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise PublicationError("Duplicate authorization JSON property")
-            result[key] = value
-        return result
-
-    try:
-        with source.open("rb") as handle:
-            raw = handle.read(1_000_001)
-        if len(raw) > 1_000_000:
-            raise PublicationError("Authorization input exceeds size limit")
-        return json.loads(raw.decode("utf-8-sig"), object_pairs_hook=unique)
-    except (OSError, UnicodeError, ValueError) as exc:
-        raise PublicationError("Invalid authorization JSON input") from exc
+    """Use the same strict decoder, with a tighter permission-ledger limit."""
+    return read_json(path, size_limit=1_000_000)
 
 
 def input_from_manifest(parent, name, *, suffix):
     if not isinstance(name, str) or not name or Path(name).is_absolute():
         raise PublicationError("Manifest paths must be relative to their directory")
-    path = (parent / name).resolve(strict=False)
-    if not path.is_relative_to(parent.resolve()) or path.suffix != suffix or not path.is_file():
+    # Resolve only after checking every user-supplied path component for
+    # symlinks; otherwise pathlib.resolve() would silently hide the symlink.
+    location = parent
+    for segment in Path(name).parts:
+        location = location / segment
+        if location.is_symlink():
+            raise PublicationError("Symlinked manifest input is prohibited")
+    path = location.resolve(strict=False)
+    if (not path.is_relative_to(parent.resolve()) or path.suffix != suffix
+            or not path.is_file()):
         raise PublicationError("Unsafe or missing manifest input path")
     return path
 
@@ -83,18 +97,54 @@ def assemble_submissions(manifest, location, *, approved_sources=None):
             "source_id", "format", "feed_path", "annotations_path"
         }:
             feed = input_from_manifest(location, item["feed_path"], suffix=".xml")
-            if feed.stat().st_size > MAX_FEED_BYTES:
+            try:
+                with feed.open("rb") as handle:
+                    xml_bytes = handle.read(MAX_FEED_BYTES + 1)
+            except OSError as exc:
+                raise PublicationError("Unable to read local feed snapshot") from exc
+            if len(xml_bytes) > MAX_FEED_BYTES:
                 raise PublicationError("Excessive local feed size")
             annotation = input_from_manifest(
                 location, item["annotations_path"], suffix=".json"
             )
             submissions[sid] = {
-                "xml": feed.read_bytes(),
+                "xml": xml_bytes,
                 "annotations": read_json(annotation),
             }
         else:
             raise PublicationError("Unsupported offline manifest entry")
     return submissions
+
+
+def compile_local_bundle(
+    base_catalog, sources, authorizations, manifest, listing_reviews, claims, *, now=None,
+):
+    """Strict offline permission, snapshot, review and claim preflight.
+
+    Returns a catalog candidate, not permission to activate the public API.
+    """
+    base = read_json(base_catalog)
+    registry = read_json(sources)
+    approved = frozenset(load_source_authorizations(
+        registry, read_authorization_json(authorizations), now=now,
+    ))
+    manifest_path = Path(manifest)
+    entry_list = read_json(manifest_path)
+    submissions = assemble_submissions(
+        entry_list, manifest_path.resolve().parent, approved_sources=approved,
+    )
+    reviews = read_json(listing_reviews)
+    if (not isinstance(reviews, dict)
+            or set(reviews) != {"schema_version", "reviews"}
+            or reviews["schema_version"] != "1.0.0"):
+        raise PublicationError("Invalid listing review document")
+    ledger = read_json(claims)
+    result = build_reviewed_catalog(
+        base, registry, submissions, reviews["reviews"], ledger, now=now,
+    )
+    if validate(result["catalog"]):
+        raise PublicationError("Compiled catalog violates v1 contract")
+    return result, approved
 
 
 def main(argv=None):
@@ -114,27 +164,10 @@ def main(argv=None):
     if output.suffix != ".json" or output.exists() or output.is_symlink() or not output.parent.is_dir():
         parser.error("Output must be a new JSON file inside an existing directory")
     try:
-        base = read_json(args.base_catalog)
-        registry = read_json(args.sources)
-        approved_sources = frozenset(load_source_authorizations(
-            registry, read_authorization_json(args.authorizations)
-        ))
-        manifest_path = Path(args.manifest)
-        manifest = read_json(manifest_path)
-        submissions = assemble_submissions(
-            manifest, manifest_path.resolve().parent,
-            approved_sources=approved_sources,
+        result, approved_sources = compile_local_bundle(
+            args.base_catalog, args.sources, args.authorizations, args.manifest,
+            args.listing_reviews, args.claims,
         )
-        reviews = read_json(args.listing_reviews)
-        if not isinstance(reviews, dict) or set(reviews) != {"schema_version", "reviews"} or reviews["schema_version"] != "1.0.0":
-            raise PublicationError("Invalid listing review document")
-        claim_ledger = read_json(args.claims)
-        result = build_reviewed_catalog(
-            base, registry, submissions, reviews["reviews"], claim_ledger
-        )
-        errors = validate(result["catalog"])
-        if errors:
-            raise PublicationError("Compiled catalog violates v1 contract")
         serialized = json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         with output.open("x", encoding="utf-8") as handle:
             handle.write(serialized)
