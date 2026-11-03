@@ -8,6 +8,8 @@ type Props={
   skills:Skill[]
   saving:boolean
   saved?:boolean
+  stale?:boolean
+  onReload?:()=>void
   onSave:(changes:LearningPreferencesUpdate)=>Promise<void>
   onApply:()=>void
   onDirtyChange?:(dirty:boolean)=>void
@@ -23,7 +25,7 @@ export function editablePreferences(value:LearningPreferences):LearningPreferenc
   }
 }
 
-export default function AccountPreferencesPanel({value,skills,saving,saved=false,onSave,onApply,onDirtyChange}:Props){
+export default function AccountPreferencesPanel({value,skills,saving,saved=false,stale=false,onReload,onSave,onApply,onDirtyChange}:Props){
   const [draft,setDraft]=useState<LearningPreferencesUpdate>(()=>editablePreferences(value))
   const [editOpen,setEditOpen]=useState(!value.onboarding_completed)
   const [problem,setProblem]=useState('')
@@ -63,8 +65,8 @@ export default function AccountPreferencesPanel({value,skills,saving,saved=false
         display_name:draft.display_name.trim(),
         career_goal:draft.career_goal.trim(),
       })
-    }catch{
-      setProblem('Your changes could not be saved. Check your connection and skill selections.')
+    }catch(reason){
+      setProblem(reason instanceof Error?reason.message:'Your changes could not be saved. Check your connection and skill selections.')
     }
   }
 
@@ -133,6 +135,10 @@ export default function AccountPreferencesPanel({value,skills,saving,saved=false
         </div>
       </div>
       {problem&&<p className="account-preferences-error" role="alert">{problem}</p>}
+      {stale&&onReload&&<div className="preferences-loading" role="alert">
+        <p>Another signed-in session saved newer preferences. Your unsaved edits have not been applied to the server.</p>
+        <button type="button" disabled={saving} onClick={()=>{if(!changed||window.confirm('Load the latest account preferences and discard the edits in this editor?'))onReload()}}>Load latest saved preferences</button>
+      </div>}
     </form>}
   </section>
 }

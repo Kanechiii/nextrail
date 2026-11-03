@@ -14,13 +14,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nextrail_ai import PlanningRequest
 from nextrail_auth import AccountStore, AuthError
-from nextrail_auth.preferences import AccountPreferencesStore
+from nextrail_auth.preferences import AccountPreferencesStore, PreferenceConflict
 from nextrail_discovery import discover_courses
 from nextrail_orchestration import orchestrate
 from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.idempotency import IdempotencyConflict, key_digest
 from nextrail_storage.store import ProgressConflict
 from nextrail_storage.workspace import WorkspaceError, build_workspace
+from nextrail_storage.sync import account_sync_status
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
 from .reliability import database_connection_ready
@@ -318,20 +319,48 @@ def create_app(
             raise HTTPException(400, "Invalid account deletion credentials")
 
     @app.get("/v1/me/preferences")
-    async def get_preferences(owner: str = Depends(current_owner)):
-        return app.state.preferences.get(owner)
+    async def get_preferences(response: Response, owner: str = Depends(current_owner)):
+        preferences = app.state.preferences.get(owner)
+        response.headers["ETag"] = '"' + app.state.preferences.revision(owner) + '"'
+        response.headers["Cache-Control"] = "no-store"
+        return preferences
 
     @app.patch("/v1/me/preferences")
     async def update_preferences(
-        body: PreferencesUpdate, owner: str = Depends(current_owner)
+        body: PreferencesUpdate, response: Response,
+        owner: str = Depends(current_owner),
+        if_match: str | None = Header(default=None, alias="If-Match"),
     ):
+        expected = None
+        if if_match is not None:
+            if not re.fullmatch(r'"[0-9a-f]{64}"', if_match):
+                raise HTTPException(422, "Invalid preference revision")
+            expected = if_match[1:-1]
         try:
-            return app.state.preferences.update(
+            result = app.state.preferences.update(
                 owner, body.model_dump(exclude_unset=True),
                 allowed_skill_ids={skill["id"] for skill in active_catalog()["skills"]},
+                expected_revision=expected,
+            )
+            response.headers["ETag"] = '"' + app.state.preferences.revision(owner) + '"'
+            response.headers["Cache-Control"] = "no-store"
+            return result
+        except PreferenceConflict:
+            raise HTTPException(
+                409, "Preferences changed in another session. Reload before saving."
             )
         except (AuthError, StorageError):
             raise HTTPException(422, "Invalid account preferences")
+
+    @app.get("/v1/me/sync/status")
+    async def account_sync_readiness(
+        response: Response, owner: str = Depends(current_owner),
+    ):
+        # A read-only visibility endpoint, not automatic remote synchronization.
+        status = account_sync_status(app.state.db, owner)
+        response.headers["ETag"] = '"' + status["state_revision"] + '"'
+        response.headers["Cache-Control"] = "no-store"
+        return status
 
     @app.get("/v1/me/overview")
     async def account_overview(owner: str = Depends(current_owner)):
