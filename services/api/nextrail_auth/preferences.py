@@ -1,12 +1,17 @@
 """Optional account onboarding and learning preferences, never guest-required."""
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
 
-from nextrail_storage.database import atomic
+from nextrail_storage.database import StorageError, atomic
 from nextrail_storage.store import owner_id
 
 from .accounts import AuthError
+
+class PreferenceConflict(StorageError):
+    """Another verified account session changed preferences since the last read."""
+
 
 SCHEMA_VERSION = 1
 DEFAULTS = {
@@ -126,10 +131,34 @@ class AccountPreferencesStore:
         )
         return result
 
-    def update(self, owner, changes, *, allowed_skill_ids):
+    def revision(self, owner):
+        """Opaque per-owner revision derived from committed preference audit events.
+
+        A monotonic audit sequence prevents same-second edits from colliding.
+        No global event ID or private account value is exposed to clients.
+        """
+        owner = owner_id(owner)
+        self.get(owner)
+        row = self.conn.execute(
+            """SELECT COALESCE(MAX(event_id), 0) AS revision FROM audit_events
+               WHERE owner_id=? AND entity_type='account_preferences'
+                 AND entity_id=? AND operation='updated'""",
+            (owner, owner),
+        ).fetchone()
+        return hashlib.sha256(
+            f"{owner}:preferences:{row['revision']}".encode("utf-8")
+        ).hexdigest()
+
+    def update(self, owner, changes, *, allowed_skill_ids, expected_revision=None):
         owner = owner_id(owner)
         if not isinstance(changes, dict) or not changes or not set(changes).issubset(FIELDS):
             raise AuthError("Unsupported preference fields")
+        if expected_revision is not None and (
+            not isinstance(expected_revision, str)
+            or len(expected_revision) != 64
+            or any(char not in "0123456789abcdef" for char in expected_revision)
+        ):
+            raise AuthError("Invalid preference revision")
         allowed = set(allowed_skill_ids)
         validated = {}
         for key, value in changes.items():
@@ -145,14 +174,20 @@ class AccountPreferencesStore:
                 validated[key] = _check_skills(value, allowed, 32)
             elif key == "known_skill_ids":
                 validated[key] = _check_skills(value, allowed, 128)
-        current = self.get(owner)
-        proposed = {key: current[key] for key in FIELDS}
-        proposed.update(validated)
-        changed = sorted(key for key in validated if current[key] != proposed[key])
-        if not changed:
-            return current
-        timestamp = _timestamp()
+        # BEGIN IMMEDIATE serializes revision check + update across connections.
         with atomic(self.conn):
+            current = self.get(owner)
+            if (expected_revision is not None
+                    and expected_revision != self.revision(owner)):
+                raise PreferenceConflict(
+                    "Preferences changed in another session; reload before saving"
+                )
+            proposed = {key: current[key] for key in FIELDS}
+            proposed.update(validated)
+            changed = sorted(key for key in validated if current[key] != proposed[key])
+            if not changed:
+                return current
+            timestamp = _timestamp()
             self.conn.execute(
                 """INSERT INTO account_preferences(
                     owner_id,display_name,career_goal,weekly_hours,target_skill_ids,
