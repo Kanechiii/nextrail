@@ -134,6 +134,32 @@ def _eligible_resources(
     return sorted(set(matches))
 
 
+def _milestone_explanation(skills, skill_id, resource_ids):
+    """Bounded catalog-grounded wording; never invent courses or completions."""
+    name = " ".join(skills[skill_id]["name"].split())[:70]
+    parents = skills[skill_id]["prerequisites"]
+    if parents:
+        labels = [
+            " ".join(skills[parent]["name"].split())[:50]
+            for parent in parents[:2]
+        ]
+        suffix = " and other prerequisites" if len(parents) > 2 else ""
+        first = f"Build on {', '.join(labels)}{suffix} to learn {name}."
+    else:
+        first = f"Start with {name}; no prerequisite skills are required."
+    if resource_ids:
+        second = (
+            "Eligible catalog resources are listed; verify current access, "
+            "pricing and certificate terms before enrollment."
+        )
+    else:
+        second = (
+            "No reviewed course currently meets the pathway access policy; "
+            "this milestone remains a skills-only step."
+        )
+    return f"{first} {second}"
+
+
 def build_pathway(
     catalog: Mapping[str, Any],
     request: PlanningRequest,
@@ -185,10 +211,7 @@ def build_pathway(
             "order": len(milestones) + 1,
             "skill_id": selected,
             "resource_ids": resources,
-            "rationale": (
-                f"Study {skills[selected]['name']} after completing its prerequisites. "
-                "Course availability and pricing require independent verification."
-            ),
+            "rationale": _milestone_explanation(skills, selected, resources),
         })
         completed.add(selected)
         pending.remove(selected)
