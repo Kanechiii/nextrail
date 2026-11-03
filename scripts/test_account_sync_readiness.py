@@ -211,7 +211,7 @@ class AccountSyncReadinessTests(unittest.TestCase):
         )
 
     def test_revoked_session_and_guests_cannot_read_sync_status(self):
-        self.assertEqual(self.first.get("/v1/me/sync/status").status_code, 422)
+        self.assertEqual(self.first.get("/v1/me/sync/status").status_code, 401)
         invalid = self.first.get(
             "/v1/me/sync/status",
             headers={"Authorization": "Bearer invalid"},
