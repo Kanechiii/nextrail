@@ -53,6 +53,8 @@ jobs:
         run: python scripts/audit_provider_rights.py --dossier data/provider-rights-review.sample.json --expect-pending
       - name: Verify offline source adapters have zero authorized real providers
         run: python scripts/verify_offline_source_integration.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json --manifest data/course-publication.manifest.sample.json --expect-empty
+      - name: Verify offline catalog quality and freshness without publication
+        run: python scripts/audit_catalog_quality.py --base-catalog data/catalog.sample.json --sources data/sources.sample.json --authorizations data/provider-authorizations.sample.json --manifest data/course-publication.manifest.sample.json --listing-reviews data/course-publication.reviews.sample.json --claims data/evidence.sample.json --expect-empty
       - name: Verify pre-release acceptance is blocked without evidence
         run: python scripts/verify_pre_release_acceptance.py --manifest data/pre-release-acceptance.sample.json --expect-blocked
       - name: Confirm desktop/mobile UI acceptance remains blocked without review
