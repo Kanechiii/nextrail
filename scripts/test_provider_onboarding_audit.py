@@ -1,6 +1,7 @@
 """Provider onboarding readiness, hostile offline file inputs and no activation."""
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -12,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from publish_course_catalog import (
-    PublicationError, input_from_manifest, read_json,
+    MAX_FEED_BYTES, PublicationError, assemble_submissions,
+    input_from_manifest, read_json,
 )
 from test_course_pipeline import fixtures
 
@@ -185,6 +187,94 @@ class ProviderOnboardingReadinessTests(unittest.TestCase):
         with self.assertRaisesRegex(PublicationError, "Non-finite"):
             read_json(snapshot)
         self.assertEqual(self.audit().returncode, 1)
+
+    def test_overflowing_json_numbers_fail_closed_in_all_input_documents(self):
+        files = (
+            "base.json", "sources.json", "auth.json", "manifest.json",
+            "snapshot.json", "reviews.json", "claims.json",
+        )
+        for name in files:
+            original = (self.folder / name).read_bytes()
+            for exponent in ("1e999", "-1E9999"):
+                with self.subTest(document=name, exponent=exponent):
+                    (self.folder / name).write_text(
+                        '{"nested":{"amount":' + exponent + '}}', encoding="utf-8"
+                    )
+                    try:
+                        with self.assertRaisesRegex(PublicationError, "Non-finite"):
+                            read_json(self.folder / name)
+                        result = self.audit()
+                        self.assertEqual(result.returncode, 1, result.stdout)
+                        self.assertEqual(result.stdout, "")
+                    finally:
+                        (self.folder / name).write_bytes(original)
+        valid = self.folder / "finite.json"
+        valid.write_text('{"amount":1e308}', encoding="utf-8")
+        self.assertEqual(read_json(valid)["amount"], 1e308)
+
+    def test_duplicate_nested_json_properties_are_rejected(self):
+        snapshot = self.folder / "snapshot.json"
+        snapshot.write_text(
+            '{"nested":{"checked_at":"first","checked_at":"second"}}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(PublicationError, "Duplicate"):
+            read_json(snapshot)
+        self.assertEqual(self.audit().returncode, 1)
+
+    def test_relative_manifest_paths_reject_windows_roots_and_drives(self):
+        for name in (
+            "C:relative.json", "C:\\absolute.json", "\\rooted.json",
+            "\\\\server\\share\\snapshot.json", "../outside.json",
+            "sub/../../outside.json",
+        ):
+            with self.subTest(name=name):
+                with self.assertRaises(PublicationError):
+                    input_from_manifest(self.folder, name, suffix=".json")
+
+    def test_json_inside_symlinked_parent_is_rejected(self):
+        physical = self.folder / "physical"
+        physical.mkdir()
+        (physical / "snapshot.json").write_text('{"records":[]}', encoding="utf-8")
+        linked = self.folder / "linked"
+        try:
+            linked.symlink_to(physical, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlinks unavailable")
+        with self.assertRaisesRegex(PublicationError, "Symlink"):
+            read_json(linked / "snapshot.json")
+        with self.assertRaisesRegex(PublicationError, "Symlink"):
+            input_from_manifest(linked, "snapshot.json", suffix=".json")
+
+    def test_nonregular_json_file_is_rejected_without_blocking(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("Named pipes unavailable")
+        path = self.folder / "pipe.json"
+        try:
+            os.mkfifo(path)
+        except OSError:
+            self.skipTest("Named pipes unavailable")
+        with self.assertRaisesRegex(PublicationError, "regular file"):
+            read_json(path)
+
+    def test_rss_feed_size_is_bounded_and_valid_small_xml_is_preserved(self):
+        feed = self.folder / "feed.xml"
+        feed.write_bytes(b"x" * (MAX_FEED_BYTES + 1))
+        self.write("annotations.json", {})
+        manifest = {"schema_version": "1.0.0", "batches": [{
+            "source_id": "example-manual-one", "format": "rss",
+            "feed_path": "feed.xml", "annotations_path": "annotations.json",
+        }]}
+        with self.assertRaisesRegex(PublicationError, "Excessive local feed size"):
+            assemble_submissions(
+                manifest, self.folder, approved_sources={"example-manual-one"},
+            )
+        feed.write_bytes(b"<rss></rss>")
+        result = assemble_submissions(
+            manifest, self.folder, approved_sources={"example-manual-one"},
+        )
+        self.assertEqual(result["example-manual-one"]["xml"], b"<rss></rss>")
+        self.assertEqual(result["example-manual-one"]["annotations"], {})
 
     def test_symlinked_snapshot_and_symlinked_parent_are_rejected(self):
         snapshot = self.folder / "snapshot.json"
