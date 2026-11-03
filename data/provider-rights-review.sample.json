@@ -1,0 +1,222 @@
+{
+  "schema_version": "1.0.0",
+  "review_purpose": "planning_only",
+  "providers": [
+    {
+      "provider_id": "microsoft-learn",
+      "provider_name": "Microsoft Learn",
+      "official_website": "https://learn.microsoft.com",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "github-skills",
+      "provider_name": "GitHub Skills",
+      "official_website": "https://skills.github.com",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "github-roadmaps",
+      "provider_name": "GitHub repository roadmaps",
+      "official_website": "https://github.com",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "claude-academy",
+      "provider_name": "Claude Academy",
+      "official_website": "https://academy.claude.com",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "aws-skill-builder",
+      "provider_name": "AWS Skill Builder",
+      "official_website": "https://skillbuilder.aws",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "coursera",
+      "provider_name": "Coursera",
+      "official_website": "https://www.coursera.org",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "freecodecamp",
+      "provider_name": "freeCodeCamp",
+      "official_website": "https://www.freecodecamp.org",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    },
+    {
+      "provider_id": "linkedin-learning",
+      "provider_name": "LinkedIn Learning",
+      "official_website": "https://www.linkedin.com/learning",
+      "review_state": "pending",
+      "proposed_method": "undetermined",
+      "rights": {
+        "metadata_collection": "unknown",
+        "metadata_display": "unknown",
+        "metadata_caching": "unknown",
+        "commercial_use": "unknown",
+        "attribution_requirements": "unknown"
+      },
+      "evidence": {
+        "permission_basis": "unverified",
+        "permission_url": null,
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "expires_at": null
+      },
+      "course_claims": {
+        "availability": "unknown",
+        "access_cost": "unknown",
+        "certificate_cost": "unknown",
+        "student_eligibility": "unknown"
+      }
+    }
+  ]
+}
