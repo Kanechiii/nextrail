@@ -37,6 +37,8 @@ jobs:
         run: python scripts/validate_catalog.py
       - name: Test backend security and contracts
         run: python -m unittest discover -s scripts -p "test_*.py" -v
+      - name: Verify multi-session account sync readiness and preference conflicts
+        run: python -m unittest scripts.test_account_sync_readiness -v
       - name: Evaluate deterministic pathway quality
         run: python scripts/evaluate_pathways.py
       - name: Evaluate deterministic learning intelligence explanations
