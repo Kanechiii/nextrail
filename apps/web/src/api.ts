@@ -25,13 +25,18 @@ const retrySeconds=(value:string|null)=>{
   const seconds=Number(value)
   return seconds>0&&seconds<=86400?seconds:null
 }
-type CallOptions={idempotencyKey?:string;timeoutMs?:number;signal?:AbortSignal;progressRevision?:string}
+type CallOptions={idempotencyKey?:string;timeoutMs?:number;signal?:AbortSignal;progressRevision?:string;preferenceRevision?:string;onRevision?:(revision:string|null)=>void}
 export async function call<T>(path:string,method='GET',body?:unknown,token?:string,options:CallOptions={}):Promise<T>{
   const headers:Record<string,string>={'Accept':'application/json'}
   if(body!==undefined)headers['Content-Type']='application/json'
   if(token)headers.Authorization='Bearer '+token
   if(options.idempotencyKey)headers['Idempotency-Key']=options.idempotencyKey
   if(options.progressRevision)headers['If-Match']='"'+options.progressRevision+'"'
+  if(options.preferenceRevision){
+    if(!/^[0-9a-f]{64}$/.test(options.preferenceRevision))
+      throw new ApiError('Reload account preferences before saving.',0,'PREFERENCES_REVISION_INVALID')
+    headers['If-Match']='"'+options.preferenceRevision+'"'
+  }
   const timeoutMs=options.timeoutMs??12000
   if(!Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>60000)throw new ApiError('Invalid timeout settings.',0,'CLIENT_INVALID_TIMEOUT')
   const external=options.signal
@@ -63,6 +68,7 @@ export async function call<T>(path:string,method='GET',body?:unknown,token?:stri
     if(res.status===422)throw new ApiError('Please check your inputs.',422,'INVALID_INPUT')
     if(res.status===409){
       if(path.includes('/progress/'))throw new ApiError('Progress changed in another tab. Reload the latest progress before editing.',409,'PROGRESS_STALE')
+      if(path.includes('/preferences'))throw new ApiError('Preferences changed in another session. Reload the latest saved preferences before editing.',409,'PREFERENCES_STALE')
       throw new ApiError('This save key was already used with different inputs.',409,'IDEMPOTENCY_CONFLICT')
     }
     if(res.status>=500)throw new ApiError('Server temporarily unavailable. Please retry.',res.status,'SERVER_ERROR')
@@ -70,6 +76,10 @@ export async function call<T>(path:string,method='GET',body?:unknown,token?:stri
   }
   try{const data=await res.json() as T
     if(external?.aborted)throw new ApiError('Request cancelled.',0,'REQUEST_CANCELLED')
+    if(options.onRevision){
+      const tag=res.headers.get('ETag')
+      options.onRevision(tag&&/^"[0-9a-f]{64}"$/.test(tag)?tag.slice(1,-1):null)
+    }
     return data
   }catch(reason){
     if(isRequestCancelled(reason))throw reason
