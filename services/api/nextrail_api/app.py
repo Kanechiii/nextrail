@@ -21,6 +21,7 @@ from nextrail_storage import LearningStore, StorageError, open_database
 from nextrail_storage.idempotency import IdempotencyConflict, key_digest
 from nextrail_storage.store import ProgressConflict
 from nextrail_storage.workspace import WorkspaceError, build_workspace
+from nextrail_storage.sync import account_sync_status
 from .guards import FixedWindowLimiter
 from .shared_limits import SQLiteFixedWindowLimiter
 from .reliability import database_connection_ready
@@ -350,6 +351,16 @@ def create_app(
             )
         except (AuthError, StorageError):
             raise HTTPException(422, "Invalid account preferences")
+
+    @app.get("/v1/me/sync/status")
+    async def account_sync_readiness(
+        response: Response, owner: str = Depends(current_owner),
+    ):
+        # A read-only visibility endpoint, not automatic remote synchronization.
+        status = account_sync_status(app.state.db, owner)
+        response.headers["ETag"] = '"' + status["state_revision"] + '"'
+        response.headers["Cache-Control"] = "no-store"
+        return status
 
     @app.get("/v1/me/overview")
     async def account_overview(owner: str = Depends(current_owner)):
