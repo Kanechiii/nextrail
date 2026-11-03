@@ -1,8 +1,11 @@
 """Offline reviewed course publication; no network fetches or automatic activation."""
 import argparse
 import json
+import math
+import os
+import stat
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services/api"))
@@ -29,22 +32,67 @@ def _reject_constant(value):
     raise PublicationError("Non-finite local JSON number is prohibited")
 
 
-def read_json(path, *, size_limit=MAX_JSON_BYTES):
-    """Read at most the configured bytes; prohibit symlinks and duplicate keys."""
+def _finite_float(value):
+    """Reject JSON exponents that overflow the host float representation."""
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise PublicationError("Non-finite local JSON number is prohibited")
+    return parsed
+
+
+def _reject_linked_components(path):
+    """Reject symlinks and junctions throughout an operator-supplied path."""
     source = Path(path)
-    if source.is_symlink() or not source.is_file() or source.suffix.lower() != ".json":
-        raise PublicationError("Local JSON must be an existing regular .json file")
+    if source.anchor and not source.is_absolute():
+        raise PublicationError("Ambiguous local input path")
+    location = Path(source.anchor) if source.is_absolute() else Path.cwd()
+    for segment in source.parts:
+        if segment in ("", ".", source.anchor):
+            continue
+        location = location / segment
+        if (location.is_symlink()
+                or getattr(location, "is_junction", lambda: False)()):
+            raise PublicationError("Symlinked local input path is prohibited")
+
+
+def _read_bounded_regular_file(path, *, suffix, size_limit, oversize_message):
+    """Read a bounded regular local file; do not follow a final symlink."""
+    source = Path(path)
+    if source.suffix.lower() != suffix:
+        raise PublicationError("Local input has an unexpected extension")
+    _reject_linked_components(source)
+    flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0)
+             | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
     try:
-        with source.open("rb") as handle:
-            raw = handle.read(size_limit + 1)
-        if len(raw) > size_limit:
-            raise PublicationError("Local JSON input exceeds size limit")
+        descriptor = os.open(source, flags)
+        with os.fdopen(descriptor, "rb") as handle:
+            metadata = os.fstat(handle.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                raise PublicationError("Local input must be a regular file")
+            if metadata.st_size > size_limit:
+                raise PublicationError(oversize_message)
+            data = handle.read(size_limit + 1)
+    except OSError as exc:
+        raise PublicationError("Unable to read local input") from exc
+    if len(data) > size_limit:
+        raise PublicationError(oversize_message)
+    return data
+
+
+def read_json(path, *, size_limit=MAX_JSON_BYTES):
+    """Read strict bounded JSON without unsafe paths or non-finite numbers."""
+    raw = _read_bounded_regular_file(
+        path, suffix=".json", size_limit=size_limit,
+        oversize_message="Local JSON input exceeds size limit",
+    )
+    try:
         return json.loads(
             raw.decode("utf-8-sig"),
             object_pairs_hook=_unique_properties,
             parse_constant=_reject_constant,
+            parse_float=_finite_float,
         )
-    except (OSError, UnicodeError, ValueError) as exc:
+    except (UnicodeError, ValueError) as exc:
         if isinstance(exc, PublicationError):
             raise
         raise PublicationError("Invalid local JSON input") from exc
@@ -56,14 +104,20 @@ def read_authorization_json(path):
 
 
 def input_from_manifest(parent, name, *, suffix):
-    if not isinstance(name, str) or not name or Path(name).is_absolute():
+    if not isinstance(name, str) or not name:
         raise PublicationError("Manifest paths must be relative to their directory")
-    # Resolve only after checking every user-supplied path component for
-    # symlinks; otherwise pathlib.resolve() would silently hide the symlink.
+    relative = Path(name)
+    windows = PureWindowsPath(name)
+    if (relative.is_absolute() or relative.anchor or windows.anchor
+            or ".." in relative.parts or ".." in windows.parts):
+        raise PublicationError("Manifest paths must be relative to their directory")
+    # Validate the manifest parent too, not just its user-supplied children.
+    _reject_linked_components(parent)
     location = parent
-    for segment in Path(name).parts:
+    for segment in relative.parts:
         location = location / segment
-        if location.is_symlink():
+        if (location.is_symlink()
+                or getattr(location, "is_junction", lambda: False)()):
             raise PublicationError("Symlinked manifest input is prohibited")
     path = location.resolve(strict=False)
     if (not path.is_relative_to(parent.resolve()) or path.suffix != suffix
@@ -97,13 +151,10 @@ def assemble_submissions(manifest, location, *, approved_sources=None):
             "source_id", "format", "feed_path", "annotations_path"
         }:
             feed = input_from_manifest(location, item["feed_path"], suffix=".xml")
-            try:
-                with feed.open("rb") as handle:
-                    xml_bytes = handle.read(MAX_FEED_BYTES + 1)
-            except OSError as exc:
-                raise PublicationError("Unable to read local feed snapshot") from exc
-            if len(xml_bytes) > MAX_FEED_BYTES:
-                raise PublicationError("Excessive local feed size")
+            xml_bytes = _read_bounded_regular_file(
+                feed, suffix=".xml", size_limit=MAX_FEED_BYTES,
+                oversize_message="Excessive local feed size",
+            )
             annotation = input_from_manifest(
                 location, item["annotations_path"], suffix=".json"
             )
