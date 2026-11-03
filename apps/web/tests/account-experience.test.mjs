@@ -9,11 +9,11 @@ const api=src('../src/api.ts')
 const css=src('../src/account-experience.css')
 const entry=src('../src/main.tsx')
 
-test('account preference types use existing backend contract with no new service',()=>{
+test('account preference types retain the backend JSON contract and use revision ETags',()=>{
   assert.match(api,/export type LearningPreferences=\{display_name:string;career_goal:string;weekly_hours:number;target_skill_ids:string\[\];known_skill_ids:string\[\];onboarding_completed:boolean;updated_at:string\|null\}/)
   assert.match(api,/export type LearningPreferencesUpdate=Pick<LearningPreferences/)
-  assert.match(app,/call<LearningPreferences>\('\/v1\/me\/preferences','GET',undefined,token\)/)
-  assert.match(app,/call<LearningPreferences>\('\/v1\/me\/preferences','PATCH',changes,token\)/)
+  assert.match(app,/call<LearningPreferences>\('\/v1\/me\/preferences','GET',undefined,token,\{onRevision:/)
+  assert.match(app,/call<LearningPreferences>\('\/v1\/me\/preferences','PATCH',changes,token,\{preferenceRevision:revision,onRevision:/)
   assert.match(api,/headers\.Authorization='Bearer '/)
 })
 
@@ -47,7 +47,7 @@ test('sign-out clears private profile state, guest draft and selected route',()=
   assert.match(app,/if\(\(preferenceDraftDirty\|\|pendingSave!==null\)\&\&!window\.confirm/)
   assert.match(app,/setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\)/)
   assert.match(app,/setProgress\(null\);setPreferences\(null\);setGuestDraft\(null\)/)
-  assert.match(app,/if\(!token\)\{setPreferences\(null\)/)
+  assert.match(app,/if\(!token\)\{preferencesRevision\.current=null;setPreferences\(null\)/)
   assert.match(app,/setToken\(null\);setAccount\(''\);setSaved\(\[\]\);setBookmarks\(\[\]\);setSelected\(''\);setProgress\(null\);setPreferences\(null\);setError\('Session ended/)
   assert.match(app,/setPreferences\(null\);saveRequest\.current=null;discardCheckpoint\(accessibleTabStorage\(\)\);setDeviceCheckpoint\(null\);setToken\(result\.access_token\)/)
   assert.match(app,/return\(\)=>\{active=false\}/)
@@ -85,4 +85,17 @@ test('profile and transfer UI support light dark mobile focus and reduced motion
   assert.match(css,/@media\(prefers-reduced-motion:reduce\)/)
   assert.match(css,/:focus-visible/)
   assert.match(entry,/import '\.\/account-experience\.css'/)
+})
+
+test('preferences use stale-write protection and never silently discard draft edits',()=>{
+  assert.match(api,/options\.preferenceRevision/)
+  assert.match(api,/headers\['If-Match'\]/)
+  assert.match(api,/onRevision/)
+  assert.match(api,/PREFERENCES_STALE/)
+  assert.match(app,/preferencesRevision\.current/)
+  assert.match(app,/setPreferencesConflict\(true\)/)
+  assert.match(panel,/stale&&onReload/)
+  assert.match(panel,/Load latest saved preferences/)
+  assert.match(panel,/window\.confirm\('Load the latest account preferences and discard the edits/)
+  assert.match(panel,/setProblem\(reason instanceof Error/)
 })
